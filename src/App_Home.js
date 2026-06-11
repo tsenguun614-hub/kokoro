@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import useWindowSize from "./useWindowSize";
+const width = useWindowSize();
+const isMobile = width < 768;
 
 const featuredSeries = [
   {
@@ -210,7 +213,7 @@ export default function App() {
       <div className="orb" style={{ width: 300, height: 300, background: "rgba(160,60,80,0.08)", bottom: 200, right: 100 }} />
 
       {/* ── HERO ── */}
-      <section style={{ padding: "60px 5% 40px", maxWidth: 1200, margin: "0 auto" }}>
+      <section style={{ padding: isMobile ? "24px 4% 20px" : "60px 5% 40px", maxWidth: 1200, margin: "0 auto" }}>
         <div style={{ background: "linear-gradient(135deg, rgba(201,168,76,0.08) 0%, rgba(100,60,160,0.1) 50%, rgba(160,60,80,0.08) 100%)", borderRadius: 24, padding: "50px 60px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", overflow: "hidden", border: "1px solid rgba(201,168,76,0.12)" }}>
           <div style={{ position: "absolute", top: -40, right: 200, width: 200, height: 200, borderRadius: "50%", background: "rgba(201,168,76,0.06)", pointerEvents: "none" }} />
           <div style={{ position: "absolute", bottom: -60, right: 80, width: 280, height: 280, borderRadius: "50%", background: "rgba(100,60,160,0.06)", pointerEvents: "none" }} />
@@ -221,10 +224,10 @@ export default function App() {
               <span style={{ fontSize: 10, color: "#c9a84c", fontFamily: "'Montserrat'", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 400 }}>Өнөөдөр 5 шинэ бүлэг</span>
             </div>
 
-            <h1 className="fade-up fade-up-2" style={{ fontFamily: "'Playfair Display', serif", fontSize: 54, fontWeight: 700, lineHeight: 1.1, marginBottom: 8, color: "#e8e0d0" }}>
+            <h1 className="fade-up fade-up-2" style={{ fontFamily: "'Playfair Display', serif", fontSize: isMobile ? 32 : 54, fontWeight: 700, lineHeight: 1.1, marginBottom: 8, color: "#e8e0d0" }}>
               Хайрын түүх
             </h1>
-            <h1 className="fade-up fade-up-2" style={{ fontFamily: "'Playfair Display', serif", fontSize: 54, fontWeight: 700, lineHeight: 1.1, marginBottom: 24, fontStyle: "italic" }}>
+            <h1 className="fade-up fade-up-2" style={{ fontFamily: "'Playfair Display', serif", fontSize: isMobile ? 32 : 54, fontWeight: 700, lineHeight: 1.1, marginBottom: 24, fontStyle: "italic" }}>
               <span className="gold-shimmer">Эндээс эхэлнэ.</span>
             </h1>
 
@@ -234,8 +237,8 @@ export default function App() {
             </p>
 
             <div className="fade-up fade-up-4" style={{ display: "flex", gap: 14 }}>
-              <button className="cta-btn" onClick={() => navigate("/browse")} style={{ background: "linear-gradient(135deg, #c9a84c, #8a6020)", color: "#080810", padding: "13px 28px", borderRadius: 4, fontSize: 12, fontFamily: "'Montserrat'", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", boxShadow: "0 8px 28px rgba(201,168,76,0.25)" }}>Уншиж эхлэх</button>
-              <button className="ghost-btn" onClick={() => navigate("/browse")} style={{ background: "transparent", border: "1px solid rgba(201,168,76,0.3)", color: "#c9a84c", padding: "13px 28px", borderRadius: 4, fontSize: 12, fontFamily: "'Montserrat'", fontWeight: 400, letterSpacing: "0.12em", textTransform: "uppercase" }}>Бүгдийг үзэх</button>
+              <button className="cta-btn" onClick={() => navigate("/browse")} style={{ background: "linear-gradient(135deg, #c9a84c, #8a6020)", color: "#080810", padding: isMobile ? "11px 18px" : "13px 28px", borderRadius: 4, fontSize: 12, fontFamily: "'Montserrat'", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", boxShadow: "0 8px 28px rgba(201,168,76,0.25)" }}>Уншиж эхлэх</button>
+              <button className="ghost-btn" onClick={() => navigate("/browse")} style={{ background: "transparent", border: "1px solid rgba(201,168,76,0.3)", color: "#c9a84c", padding: isMobile ? "11px 18px" : "13px 28px", borderRadius: 4, fontSize: 12, fontFamily: "'Montserrat'", fontWeight: 400, letterSpacing: "0.12em", textTransform: "uppercase" }}>Бүгдийг үзэх</button>
             </div>
 
             <div className="fade-up fade-up-4" style={{ display: "flex", gap: 36, marginTop: 48 }}>
@@ -249,7 +252,7 @@ export default function App() {
           </div>
 
           {/* Floating covers */}
-          <div style={{ position: "relative", width: 260, height: 220, flexShrink: 0 }}>
+          <div style={{ position: "relative", width: 260, height: 220, flexShrink: 0, display: isMobile ? "none" : "block" }}>
             {[2, 1, 0].map((i) => (
               <div key={i} onClick={() => navigate(`/series/${featuredSeries[i].id}`)} style={{ position: "absolute", width: 120, height: 170, borderRadius: 12, overflow: "hidden", boxShadow: "0 12px 36px rgba(0,0,0,0.6)", left: i === 0 ? 70 : i === 1 ? 35 : 0, top: i === 0 ? 20 : i === 1 ? 10 : 0, transform: `rotate(${i === 0 ? 6 : i === 1 ? 2 : -4}deg)`, border: "1px solid rgba(201,168,76,0.15)", zIndex: i, cursor: "pointer", "--r": `${i === 0 ? 6 : i === 1 ? 2 : -4}deg`, animation: `float ${3.5 + i * 0.7}s ease-in-out infinite`, animationDelay: `${i * 0.4}s` }}>
                 <img src={featuredSeries[i].cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -266,7 +269,7 @@ export default function App() {
       </div>
 
       {/* ── MAIN CONTENT ── */}
-      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "0 5% 60px", display: "grid", gridTemplateColumns: "1fr 300px", gap: 40 }}>
+      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "0 5% 60px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 300px", gap: isMobile ? 24 : 40 }}>
 
         {/* Left */}
         <div>

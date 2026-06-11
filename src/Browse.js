@@ -1,5 +1,9 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import useWindowSize from "./useWindowSize";
+const width = useWindowSize();
+const isMobile = width < 768;
+
 const ALL_SERIES = [
   { id: 1, title: "The Remarried Empress", cover: "https://picsum.photos/seed/empress/300/420", genre: "Royal Romance", chapters: 156, status: "Ongoing", rating: 9.8, views: "2.4M", isHot: true, isNew: false, updated: "2 hours ago" },
   { id: 2, title: "My Husband Hides His Beauty", cover: "https://picsum.photos/seed/husband/300/420", genre: "Fantasy Romance", chapters: 89, status: "Ongoing", rating: 9.5, views: "1.1M", isHot: false, isNew: true, updated: "5 hours ago" },

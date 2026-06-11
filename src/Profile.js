@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import useWindowSize from "./useWindowSize";
+const width = useWindowSize();
+const isMobile = width < 768;
 
 const USER = {
   name: "Narantsetseg",

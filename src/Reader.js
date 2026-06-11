@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import useWindowSize from "./useWindowSize";
+const width = useWindowSize();
+const isMobile = width < 768;
 // Simulate chapter pages with placeholder images
 const generatePages = (count) =>
   Array.from({ length: count }, (_, i) => ({
