@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import useWindowSize from "./useWindowSize";
-const width = useWindowSize();
-const isMobile = width < 768;
 
 const ALL_SERIES = [
   { id: 1, title: "The Remarried Empress", cover: "https://picsum.photos/seed/empress/300/420", genre: "Royal Romance", chapters: 156, status: "Ongoing", rating: 9.8, views: "2.4M", isHot: true, isNew: false, updated: "2 hours ago" },
@@ -98,6 +96,8 @@ export default function Browse() {
   const [sortBy, setSortBy] = useState("popular");
   const [viewMode, setViewMode] = useState("grid"); // grid | list
   const [search, setSearch] = useState("");
+  const width = useWindowSize();
+  const isMobile = width < 768;
 
   const filtered = ALL_SERIES
     .filter(s => activeGenre === "All" || s.genre === activeGenre)

@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import useWindowSize from "./useWindowSize";
-const width = useWindowSize();
-const isMobile = width < 768;
+
 // Simulate chapter pages with placeholder images
 const generatePages = (count) =>
   Array.from({ length: count }, (_, i) => ({
@@ -132,6 +131,8 @@ export default function Reader() {
   const navigate = useNavigate();
   const { series, chapter } = useParams();
   const CURRENT = Number(chapter) || 156;
+  const screenWidth = useWindowSize();
+  const isMobile = screenWidth < 768;
   useEffect(() => {
   if (scrollRef.current) {
     scrollRef.current.scrollTop = 0;

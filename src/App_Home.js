@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import useWindowSize from "./useWindowSize";
-const width = useWindowSize();
-const isMobile = width < 768;
 
 const featuredSeries = [
   {
@@ -148,6 +146,8 @@ export default function App() {
   const [loaded, setLoaded] = useState(false);
   const [hoveredCard, setHoveredCard] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const width = useWindowSize();
+  const isMobile = width < 768;
 
   useEffect(() => { setTimeout(() => setLoaded(true), 100); }, []);
 

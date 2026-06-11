@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import useWindowSize from "./useWindowSize";
-const width = useWindowSize();
-const isMobile = width < 768;
 
 const USER = {
   name: "Narantsetseg",
@@ -114,6 +112,8 @@ export default function Profile() {
   const [editMode, setEditMode] = useState(false);
   const [userName, setUserName] = useState(USER.name);
   const [prefs, setPrefs] = useState({ notif: true, progress: true, autobook: false });
+  const width = useWindowSize();
+  const isMobile = width < 768;
 
   const removeBookmark = (id, e) => {
     e.stopPropagation();

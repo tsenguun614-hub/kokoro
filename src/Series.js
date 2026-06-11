@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import useWindowSize from "./useWindowSize";
-const width = useWindowSize();
-const isMobile = width < 768;
 
 const SERIES = {
   id: 1,
@@ -107,6 +105,8 @@ export default function SeriesDetail() {
   const [activeTab, setActiveTab] = useState("chapters"); // chapters | details
   const [showAll, setShowAll] = useState(false);
   const [sortDesc, setSortDesc] = useState(true);
+  const width = useWindowSize();
+  const isMobile = width < 768;
 
   const displayedБүлгүүд = showAll ? SERIES.chapters : SERIES.chapters.slice(0, 6);
   const sortedБүлгүүд = sortDesc ? displayedБүлгүүд : [...displayedБүлгүүд].reverse();
