@@ -166,7 +166,7 @@ export default function App() {
       <style>{css}</style>
        {/* ── HEADER ── */}
       <header style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(8,8,16,0.85)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(201,168,76,0.12)", padding: "0 5%" }}>
-  <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
+  <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: isMobile ? 56 : 64 }}>
     <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => navigate("/")}>
       <div style={{ width: 34, height: 34, background: "linear-gradient(135deg, #c9a84c, #8a6020)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, animation: "pulse-glow 3s ease infinite" }}>⬡</div>
       <div>
@@ -174,7 +174,7 @@ export default function App() {
         <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 300, letterSpacing: "0.25em", color: "#c9a84c", textTransform: "uppercase", marginLeft: 8 }}>MANHWA</span>
       </div>
     </div>
-    <nav style={{ display: "flex", gap: 32, alignItems: "center" }}>
+    <nav style={{ display: isMobile ? "none" : "flex", gap: 32, alignItems: "center" }}>
       {[
   { label: "Нүүр", path: "/" },
   { label: "Бүх гаргалт", path: "/browse" },
@@ -198,8 +198,8 @@ export default function App() {
   );
 })}
     </nav>
-    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <div style={{ display: "flex", alignItems: "center", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(201,168,76,0.2)", borderRadius: 6, padding: "7px 16px", gap: 10 }}>
+    <div style={{ display: isMobile ? "none" : "flex", alignItems: "center", gap: 12 }}>
+  <div style={{ display: "flex", alignItems: "center", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(201,168,76,0.2)", borderRadius: 6, padding: "7px 16px", gap: 10 }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         <input placeholder="Хайх..." onKeyDown={e => { if (e.key === "Enter" && e.target.value.trim()) navigate("/browse"); }} style={{ background: "none", border: "none", outline: "none", fontFamily: "'Montserrat', sans-serif", fontSize: 13, color: "#e8e0d0", width: 160, fontWeight: 300 }} />
       </div>
