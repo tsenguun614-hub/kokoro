@@ -133,6 +133,8 @@ export default function Reader() {
   const CURRENT = Number(chapter) || 156;
   const screenWidth = useWindowSize();
   const isMobile = screenWidth < 768;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   useEffect(() => {
   if (scrollRef.current) {
     scrollRef.current.scrollTop = 0;
