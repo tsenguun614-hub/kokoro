@@ -199,7 +199,7 @@ export default function Auth() {
       { label: "Бүх гаргалт", path: "/browse" },
       { label: "Bookmarks", path: "/profile" },
     ].map(item => {
-      const active = location.pathname === item.path;
+      const active = false;
       return (
         <div key={item.label} onClick={() => { navigate(item.path); setMenuOpen(false); }} style={{
           padding: "14px 16px", borderRadius: 8, cursor: "pointer",
@@ -241,7 +241,7 @@ export default function Auth() {
           { label: "Бүх гаргалт", path: "/browse" },
           { label: "Bookmarks", path: "/profile" },
         ].map(item => {
-          const active = location.pathname === item.path;
+          const active = false;
           return (
             <span key={item.label} className="nav-link" onClick={() => navigate(item.path)} style={{
               fontFamily: "'Montserrat', sans-serif",
