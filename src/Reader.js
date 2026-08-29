@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import useWindowSize from "./useWindowSize";
+import { PLAYFAIR_MONTSERRAT_FONTS, baseCss } from "./sharedStyles";
 
 // Simulate chapter pages with placeholder images
 const generatePages = (count) =>
@@ -21,21 +22,12 @@ const CHAPTERS = [
 const PAGES = generatePages(12);
 
 const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400&family=Montserrat:wght@300;400;500;600&display=swap');
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  ::-webkit-scrollbar { width: 5px; }
-  ::-webkit-scrollbar-track { background: #080810; }
-  ::-webkit-scrollbar-thumb { background: #c9a84c; border-radius: 4px; }
+  ${PLAYFAIR_MONTSERRAT_FONTS}
+  ${baseCss}
 
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-  @keyframes shimmer {
-    0% { background-position: -200% center; }
-    100% { background-position: 200% center; }
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
 
   .fade-in { animation: fadeIn 0.4s ease both; }
   .slide-down { animation: slideDown 0.3s ease both; }
@@ -84,15 +76,6 @@ const css = `
   .progress-thumb:hover { transform: scale(1.3); }
   .progress-thumb:active { cursor: grabbing; }
 
-  .gold-shimmer {
-    background: linear-gradient(90deg, #c9a84c, #f0d080, #c9a84c);
-    background-size: 200% auto;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    animation: shimmer 3s linear infinite;
-  }
-
   .comment-input:focus {
     border-color: rgba(201,168,76,0.5) !important;
     outline: none;
@@ -133,15 +116,6 @@ export default function Reader() {
   const CURRENT = Number(chapter) || 156;
   const screenWidth = useWindowSize();
   const isMobile = screenWidth < 768;
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  useEffect(() => {
-  if (scrollRef.current) {
-    scrollRef.current.scrollTop = 0;
-  }
-  setCurrentPage(1);
-  setLoadedPages({});
-}, [chapter]);
   const [currentPage, setCurrentPage] = useState(1);
   const [readMode, setReadMode] = useState("scroll"); // scroll | paged
   const [width, setWidth] = useState("comfortable"); // compact | comfortable | wide | full
@@ -149,7 +123,7 @@ export default function Reader() {
   const [showChapters, setShowChapters] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
-  const [showсэтгэгдэл, setShowсэтгэгдэл] = useState(false);
+  const [showComments, setShowComments] = useState(false);
   const [loadedPages, setLoadedPages] = useState({});
   const [isDark, setIsDark] = useState(true);
   const [comment, setComment] = useState("");
@@ -161,6 +135,14 @@ export default function Reader() {
   const maxW = widthMap[width];
 
   const progress = Math.round((currentPage / PAGES.length) * 100);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+    }
+    setCurrentPage(1);
+    setLoadedPages({});
+  }, [chapter]);
 
   // Track scroll position for current page in scroll mode
   useEffect(() => {
@@ -192,7 +174,7 @@ export default function Reader() {
   useEffect(() => {
     resetHideTimer();
     return () => clearTimeout(hideTimer.current);
-  }, []);
+  }, [resetHideTimer]);
 
   const goPage = (n) => {
     const clamped = Math.max(1, Math.min(PAGES.length, n));
@@ -232,25 +214,29 @@ export default function Reader() {
             <button className="icon-btn" onClick={() => navigate("/")} style={{ color: sub, padding: 8, borderRadius: 6 }}>
   <HomeIcon />
 </button>
-            <span style={{ color: sub, fontSize: 12 }}>/</span>
-            <span onClick={() => navigate("/series/1")} style={{ fontSize: 12, color: sub, fontFamily: "'Montserrat'", fontWeight: 300, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}>The Remarried Empress</span>
-            <span style={{ color: sub, fontSize: 12 }}>/</span>
+            {!isMobile && (
+              <>
+                <span style={{ color: sub, fontSize: 12 }}>/</span>
+                <span onClick={() => navigate("/series/1")} style={{ fontSize: 12, color: sub, fontFamily: "'Montserrat'", fontWeight: 300, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}>The Remarried Empress</span>
+                <span style={{ color: sub, fontSize: 12 }}>/</span>
+              </>
+            )}
           </div>
 
           {/* Center: Chapter selector */}
-          <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
-            <div style={{ position: "relative" }}>
+          <div style={{ flex: 1, display: "flex", justifyContent: "center", minWidth: 0 }}>
+            <div style={{ position: "relative", minWidth: 0 }}>
               <button onClick={() => { setShowChapters(!showChapters); setShowSettings(false); }} style={{
                 background: surface, border: `1px solid ${isDark ? "rgba(201,168,76,0.2)" : "rgba(201,168,76,0.3)"}`,
-                borderRadius: 6, padding: "7px 16px",
-                display: "flex", alignItems: "center", gap: 10,
-                cursor: "pointer", color: text,
+                borderRadius: 6, padding: isMobile ? "7px 10px" : "7px 16px",
+                display: "flex", alignItems: "center", gap: isMobile ? 6 : 10,
+                cursor: "pointer", color: text, maxWidth: "100%",
               }}>
                 <ListIcon />
-                <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 14, fontWeight: 500 }}>
-                  Ch. {CURRENT} — When Empires Fall
+                <span style={{ fontFamily: "'Playfair Display', serif", fontSize: isMobile ? 12 : 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {isMobile ? `Ch. ${CURRENT}` : `Ch. ${CURRENT} — When Empires Fall`}
                 </span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="2.5" style={{ transform: showChapters ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}><path d="M6 9l6 6 6-6"/></svg>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="2.5" style={{ flexShrink: 0, transform: showChapters ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}><path d="M6 9l6 6 6-6"/></svg>
               </button>
 
               {/* Chapter dropdown */}
@@ -260,7 +246,7 @@ export default function Reader() {
                   background: isDark ? "#12121e" : "#f8f4ec",
                   border: `1px solid ${isDark ? "rgba(201,168,76,0.15)" : "rgba(201,168,76,0.25)"}`,
                   borderRadius: 8, overflow: "hidden",
-                  width: 280, boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
+                  width: 280, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
                   zIndex: 300,
                 }}>
                   <div style={{ padding: "10px 14px", borderBottom: `1px solid ${border}`, fontSize: 10, color: "#c9a84c", letterSpacing: "0.15em", textTransform: "uppercase", fontWeight: 500 }}>Chapters</div>
@@ -289,7 +275,7 @@ export default function Reader() {
             <button className="icon-btn" onClick={() => setBookmarked(!bookmarked)} style={{ color: sub, padding: 8, borderRadius: 6 }}>
               <BookmarkIcon filled={bookmarked} />
             </button>
-            <button className="icon-btn" onClick={() => { setShowсэтгэгдэл(!showсэтгэгдэл); setShowSettings(false); setShowChapters(false); }} style={{ color: showсэтгэгдэл ? "#c9a84c" : sub, padding: 8, borderRadius: 6 }}>
+            <button className="icon-btn" onClick={() => { setShowComments(!showComments); setShowSettings(false); setShowChapters(false); }} style={{ color: showComments ? "#c9a84c" : sub, padding: 8, borderRadius: 6 }}>
               <CommentIcon />
             </button>
             <button className="icon-btn" onClick={() => setIsDark(!isDark)} style={{ color: sub, padding: 8, borderRadius: 6 }}>
@@ -310,10 +296,10 @@ export default function Reader() {
       {/* ── SETTINGS PANEL ── */}
       {showSettings && (
         <div className="slide-down" style={{
-          position: "fixed", top: 60, right: 16, zIndex: 200,
+          position: "fixed", top: 60, right: isMobile ? 8 : 16, left: isMobile ? 8 : "auto", zIndex: 200,
           background: isDark ? "#12121e" : "#f8f4ec",
           border: `1px solid ${isDark ? "rgba(201,168,76,0.15)" : "rgba(201,168,76,0.25)"}`,
-          borderRadius: 10, padding: "20px", width: 260,
+          borderRadius: 10, padding: "20px", width: isMobile ? "auto" : 260,
           boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
         }}>
           <div style={{ fontSize: 10, color: "#c9a84c", letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 16, fontWeight: 500 }}>Уншигчийн тохиргоо</div>
@@ -522,11 +508,11 @@ export default function Reader() {
         )}
       </div>
 
-      {/* ── сэтгэгдэл PANEL ── */}
-      {showсэтгэгдэл && (
+      {/* ── COMMENTS PANEL ── */}
+      {showComments && (
         <div className="slide-down" style={{
-          position: "fixed", top: 60, right: 16, bottom: 70, zIndex: 199,
-          width: 320,
+          position: "fixed", top: 60, right: isMobile ? 8 : 16, left: isMobile ? 8 : "auto", bottom: 70, zIndex: 199,
+          width: isMobile ? "auto" : 320,
           background: isDark ? "#0f0f1e" : "#f5f1e8",
           border: `1px solid ${isDark ? "rgba(201,168,76,0.15)" : "rgba(201,168,76,0.25)"}`,
           borderRadius: 10,

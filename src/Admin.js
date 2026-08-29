@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { baseCss } from "./sharedStyles";
+import useWindowSize from "./useWindowSize";
 
 // ── MOCK DATA ──
 const MOCK_SERIES = [
@@ -21,16 +23,7 @@ const ADMIN_PASSWORD = "kokoro2025";
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700&family=DM+Sans:wght@300;400;500&display=swap');
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  ::-webkit-scrollbar { width: 5px; }
-  ::-webkit-scrollbar-track { background: #080810; }
-  ::-webkit-scrollbar-thumb { background: #c9a84c; border-radius: 4px; }
-
-  @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
-
-  .fade-up { animation: fadeUp 0.4s ease both; }
+  ${baseCss}
 
   .admin-input {
     width: 100%; padding: 11px 14px;
@@ -71,12 +64,6 @@ const css = `
   }
   .admin-textarea:focus { border-color: rgba(201,168,76,0.5); }
 
-  .cta-btn { cursor: pointer; border: none; transition: all 0.2s; }
-  .cta-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(201,168,76,0.35) !important; }
-
-  .ghost-btn { cursor: pointer; transition: all 0.2s; }
-  .ghost-btn:hover { background: rgba(201,168,76,0.08) !important; border-color: rgba(201,168,76,0.3) !important; }
-
   .danger-btn { cursor: pointer; border: none; transition: all 0.2s; }
   .danger-btn:hover { background: rgba(200,60,60,0.15) !important; border-color: rgba(200,60,60,0.4) !important; color: #e07070 !important; }
 
@@ -112,15 +99,6 @@ const css = `
     border-radius: 50%; background: white;
     transition: left 0.2s;
   }
-
-  .gold-shimmer {
-    background: linear-gradient(90deg, #c9a84c, #f0d080, #c9a84c);
-    background-size: 200% auto;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    animation: shimmer 3s linear infinite;
-  }
 `;
 
 // ── LOGIN GATE ──
@@ -143,9 +121,9 @@ function AdminLogin({ onLogin }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#080810", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#080810", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', sans-serif", padding: "0 5%" }}>
       <div style={{ position: "fixed", top: -200, right: -100, width: 500, height: 500, borderRadius: "50%", background: "rgba(100,60,160,0.1)", filter: "blur(80px)", pointerEvents: "none" }} />
-      <div className="fade-up" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "48px 40px", width: 380, boxShadow: "0 24px 80px rgba(0,0,0,0.5)", textAlign: "center" }}>
+      <div className="fade-up" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "48px 40px", width: "100%", maxWidth: 380, boxShadow: "0 24px 80px rgba(0,0,0,0.5)", textAlign: "center" }}>
         <div style={{ width: 48, height: 48, background: "linear-gradient(135deg, #c9a84c, #8a6020)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, margin: "0 auto 20px" }}>⬡</div>
         <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, fontWeight: 700, color: "#e8e0d0", marginBottom: 6 }}>Admin Access</h2>
         <p style={{ fontSize: 12, color: "rgba(232,224,208,0.35)", fontWeight: 300, marginBottom: 28 }}>KOKORO Manhwa · Content Management</p>
@@ -174,10 +152,6 @@ function AdminLogin({ onLogin }) {
             ? <><div style={{ width: 13, height: 13, borderRadius: "50%", border: "2px solid rgba(8,8,16,0.3)", borderTopColor: "#080810", animation: "spin 0.7s linear infinite" }} /> Checking...</>
             : "Enter Dashboard"}
         </button>
-
-        <p style={{ fontSize: 11, color: "rgba(232,224,208,0.2)", marginTop: 20, fontWeight: 300 }}>
-          Default password: <span style={{ color: "rgba(201,168,76,0.5)", fontFamily: "monospace" }}>kokoro2025</span>
-        </p>
       </div>
     </div>
   );
@@ -186,6 +160,8 @@ function AdminLogin({ onLogin }) {
 // ── MAIN ADMIN ──
 export default function Admin() {
   const navigate = useNavigate();
+  const screenWidth = useWindowSize();
+  const isMobile = screenWidth < 768;
   const [loggedIn, setLoggedIn] = useState(false);
   const [activeNav, setActiveNav] = useState("dashboard");
   const [series, setSeries] = useState(MOCK_SERIES);
@@ -258,52 +234,54 @@ export default function Admin() {
 
       {/* ── SIDEBAR ── */}
       <div style={{
-        width: 220, flexShrink: 0,
+        width: isMobile ? 60 : 220, flexShrink: 0,
         background: "rgba(255,255,255,0.02)",
         borderRight: "1px solid rgba(255,255,255,0.07)",
-        padding: "24px 14px",
+        padding: isMobile ? "20px 8px" : "24px 14px",
         display: "flex", flexDirection: "column",
         position: "sticky", top: 0, height: "100vh",
       }}>
         {/* Logo */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 8px", marginBottom: 32 }}>
-          <div style={{ width: 28, height: 28, background: "linear-gradient(135deg, #c9a84c, #8a6020)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>⬡</div>
-          <div>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 14, fontWeight: 700 }}>KOKORO</div>
-            <div style={{ fontSize: 9, color: "#c9a84c", letterSpacing: "0.15em", textTransform: "uppercase", fontWeight: 300 }}>Admin Panel</div>
-          </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: isMobile ? "center" : "flex-start", gap: 10, padding: "4px 8px", marginBottom: 32 }}>
+          <div style={{ width: 28, height: 28, background: "linear-gradient(135deg, #c9a84c, #8a6020)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>⬡</div>
+          {!isMobile && (
+            <div>
+              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 14, fontWeight: 700 }}>KOKORO</div>
+              <div style={{ fontSize: 9, color: "#c9a84c", letterSpacing: "0.15em", textTransform: "uppercase", fontWeight: 300 }}>Admin Panel</div>
+            </div>
+          )}
         </div>
 
         {/* Nav */}
         <nav style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
           {navItems.map(item => (
-            <div key={item.id} className="nav-item" onClick={() => setActiveNav(item.id)} style={{
-              display: "flex", alignItems: "center", gap: 10,
-              padding: "10px 12px",
+            <div key={item.id} className="nav-item" onClick={() => setActiveNav(item.id)} title={item.label} style={{
+              display: "flex", alignItems: "center", justifyContent: isMobile ? "center" : "flex-start", gap: 10,
+              padding: isMobile ? "10px 6px" : "10px 12px",
               background: activeNav === item.id ? "rgba(201,168,76,0.1)" : "transparent",
               borderLeft: activeNav === item.id ? "2px solid #c9a84c" : "2px solid transparent",
             }}>
               <span style={{ fontSize: 15 }}>{item.icon}</span>
-              <span style={{ fontSize: 13, fontWeight: activeNav === item.id ? 500 : 300, color: activeNav === item.id ? "#c9a84c" : "rgba(232,224,208,0.5)", letterSpacing: "0.04em" }}>{item.label}</span>
+              {!isMobile && <span style={{ fontSize: 13, fontWeight: activeNav === item.id ? 500 : 300, color: activeNav === item.id ? "#c9a84c" : "rgba(232,224,208,0.5)", letterSpacing: "0.04em" }}>{item.label}</span>}
             </div>
           ))}
         </nav>
 
         {/* Bottom */}
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)", paddingTop: 14 }}>
-          <div className="nav-item" onClick={() => navigate("/")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px" }}>
+          <div className="nav-item" onClick={() => navigate("/")} title="View Site" style={{ display: "flex", alignItems: "center", justifyContent: isMobile ? "center" : "flex-start", gap: 10, padding: isMobile ? "9px 6px" : "9px 12px" }}>
             <span style={{ fontSize: 13 }}>←</span>
-            <span style={{ fontSize: 12, fontWeight: 300, color: "rgba(232,224,208,0.35)" }}>View Site</span>
+            {!isMobile && <span style={{ fontSize: 12, fontWeight: 300, color: "rgba(232,224,208,0.35)" }}>View Site</span>}
           </div>
-          <div className="nav-item" onClick={() => setLoggedIn(false)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px" }}>
+          <div className="nav-item" onClick={() => setLoggedIn(false)} title="Logout" style={{ display: "flex", alignItems: "center", justifyContent: isMobile ? "center" : "flex-start", gap: 10, padding: isMobile ? "9px 6px" : "9px 12px" }}>
             <span style={{ fontSize: 13 }}>⏻</span>
-            <span style={{ fontSize: 12, fontWeight: 300, color: "rgba(232,224,208,0.35)" }}>Logout</span>
+            {!isMobile && <span style={{ fontSize: 12, fontWeight: 300, color: "rgba(232,224,208,0.35)" }}>Logout</span>}
           </div>
         </div>
       </div>
 
       {/* ── MAIN CONTENT ── */}
-      <div style={{ flex: 1, padding: "32px 36px", overflowY: "auto", maxHeight: "100vh" }}>
+      <div style={{ flex: 1, padding: isMobile ? "20px 16px" : "32px 36px", overflowY: "auto", maxHeight: "100vh", minWidth: 0 }}>
 
         {/* ── DASHBOARD ── */}
         {activeNav === "dashboard" && (
@@ -316,7 +294,7 @@ export default function Admin() {
             </div>
 
             {/* Stats */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 36 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: isMobile ? 10 : 16, marginBottom: 36 }}>
               {STATS.map((stat, i) => (
                 <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "20px" }}>
                   <div style={{ fontSize: 24, marginBottom: 10 }}>{stat.icon}</div>
@@ -359,31 +337,33 @@ export default function Admin() {
               <button className="cta-btn" onClick={() => setActiveNav("upload")} style={{ background: "linear-gradient(135deg, #c9a84c, #8a6020)", color: "#080810", padding: "11px 20px", borderRadius: 6, fontSize: 12, fontFamily: "'DM Sans'", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase" }}>+ Add New</button>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-              {/* Header row */}
-              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 80px 80px 80px 100px 80px", gap: 12, padding: "8px 16px", fontSize: 10, color: "rgba(232,224,208,0.3)", letterSpacing: "0.12em", textTransform: "uppercase" }}>
-                <span>Series</span><span>Genre</span><span>Chapters</span><span>Status</span><span>Views</span><span>Updated</span><span>Actions</span>
-              </div>
-
-              {series.map(s => (
-                <div key={s.id} className="series-row" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 80px 80px 80px 100px 80px", gap: 12, alignItems: "center", padding: "12px 16px", background: "rgba(255,255,255,0.02)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.05)" }}>
-                  <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                    <img src={s.cover} alt="" style={{ width: 32, height: 44, borderRadius: 3, objectFit: "cover", flexShrink: 0 }} />
-                    <span style={{ fontSize: 13, fontFamily: "'Playfair Display', serif", color: "#e8e0d0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
-                  </div>
-                  <span style={{ fontSize: 11, color: "#c9a84c", fontWeight: 300 }}>{s.genre}</span>
-                  <span style={{ fontSize: 13, color: "rgba(232,224,208,0.7)", textAlign: "center" }}>{s.chapters}</span>
-                  <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 3, background: s.status === "Completed" ? "rgba(100,180,100,0.1)" : "rgba(201,168,76,0.1)", color: s.status === "Completed" ? "#80c480" : "#c9a84c", border: `1px solid ${s.status === "Completed" ? "rgba(100,180,100,0.2)" : "rgba(201,168,76,0.2)"}`, textAlign: "center", letterSpacing: "0.06em", textTransform: "uppercase", justifySelf: "start" }}>{s.status}</span>
-                  <span style={{ fontSize: 11, color: "rgba(232,224,208,0.4)", fontWeight: 300 }}>{s.views}</span>
-                  <span style={{ fontSize: 11, color: "rgba(232,224,208,0.3)", fontWeight: 300 }}>{s.lastUpdated}</span>
-                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <button className="toggle-switch" onClick={() => toggleActive(s.id)} style={{ background: s.active ? "linear-gradient(135deg, #c9a84c, #8a6020)" : "rgba(255,255,255,0.1)" }}>
-                      <div className="toggle-knob" style={{ left: s.active ? 19 : 3 }} />
-                    </button>
-                    <button className="danger-btn" onClick={() => deleteSeries(s.id)} style={{ background: "rgba(200,60,60,0.08)", border: "1px solid rgba(200,60,60,0.15)", borderRadius: 4, padding: "4px 8px", fontSize: 11, color: "rgba(200,60,60,0.5)" }}>✕</button>
-                  </div>
+            <div style={{ overflowX: "auto" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 680 }}>
+                {/* Header row */}
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 80px 80px 80px 100px 80px", gap: 12, padding: "8px 16px", fontSize: 10, color: "rgba(232,224,208,0.3)", letterSpacing: "0.12em", textTransform: "uppercase" }}>
+                  <span>Series</span><span>Genre</span><span>Chapters</span><span>Status</span><span>Views</span><span>Updated</span><span>Actions</span>
                 </div>
-              ))}
+
+                {series.map(s => (
+                  <div key={s.id} className="series-row" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 80px 80px 80px 100px 80px", gap: 12, alignItems: "center", padding: "12px 16px", background: "rgba(255,255,255,0.02)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                      <img src={s.cover} alt="" style={{ width: 32, height: 44, borderRadius: 3, objectFit: "cover", flexShrink: 0 }} />
+                      <span style={{ fontSize: 13, fontFamily: "'Playfair Display', serif", color: "#e8e0d0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
+                    </div>
+                    <span style={{ fontSize: 11, color: "#c9a84c", fontWeight: 300 }}>{s.genre}</span>
+                    <span style={{ fontSize: 13, color: "rgba(232,224,208,0.7)", textAlign: "center" }}>{s.chapters}</span>
+                    <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 3, background: s.status === "Completed" ? "rgba(100,180,100,0.1)" : "rgba(201,168,76,0.1)", color: s.status === "Completed" ? "#80c480" : "#c9a84c", border: `1px solid ${s.status === "Completed" ? "rgba(100,180,100,0.2)" : "rgba(201,168,76,0.2)"}`, textAlign: "center", letterSpacing: "0.06em", textTransform: "uppercase", justifySelf: "start" }}>{s.status}</span>
+                    <span style={{ fontSize: 11, color: "rgba(232,224,208,0.4)", fontWeight: 300 }}>{s.views}</span>
+                    <span style={{ fontSize: 11, color: "rgba(232,224,208,0.3)", fontWeight: 300 }}>{s.lastUpdated}</span>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <button className="toggle-switch" onClick={() => toggleActive(s.id)} style={{ background: s.active ? "linear-gradient(135deg, #c9a84c, #8a6020)" : "rgba(255,255,255,0.1)" }}>
+                        <div className="toggle-knob" style={{ left: s.active ? 19 : 3 }} />
+                      </button>
+                      <button className="danger-btn" onClick={() => deleteSeries(s.id)} style={{ background: "rgba(200,60,60,0.08)", border: "1px solid rgba(200,60,60,0.15)", borderRadius: 4, padding: "4px 8px", fontSize: 11, color: "rgba(200,60,60,0.5)" }}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -411,7 +391,7 @@ export default function Admin() {
             </div>
 
             {activeTab === "series" && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, maxWidth: 800 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20, maxWidth: 800 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   <div>
                     <label style={{ fontSize: 11, color: "rgba(232,224,208,0.45)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>Series Title *</label>
@@ -466,7 +446,7 @@ export default function Admin() {
             )}
 
             {activeTab === "chapter" && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, maxWidth: 800 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20, maxWidth: 800 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   <div>
                     <label style={{ fontSize: 11, color: "rgba(232,224,208,0.45)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>Select Series *</label>
