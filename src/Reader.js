@@ -1,28 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import useWindowSize from "./useWindowSize";
-import { PLAYFAIR_MONTSERRAT_FONTS, baseCss } from "./sharedStyles";
+import { FONT_IMPORT, baseCss } from "./sharedStyles";
+import { getSeriesById, getChapterWithPages, getChaptersForSeries } from "./lib/series";
+import { addBookmark, removeBookmark, isBookmarked } from "./lib/bookmarks";
+import { recordChapterRead } from "./lib/history";
+import useAuth from "./lib/useAuth";
 
-// Simulate chapter pages with placeholder images
-const generatePages = (count) =>
-  Array.from({ length: count }, (_, i) => ({
-    id: i + 1,
-    src: `https://picsum.photos/seed/page${i + 1}manga/800/${580 + (i % 4) * 80}`,
-    width: 800,
-    height: 580 + (i % 4) * 80,
-  }));
-
-const CHAPTERS = [
-  { id: 154, title: "The Weight of a Crown" },
-  { id: 155, title: "A Shattered Vow" },
-  { id: 156, title: "When Empires Fall" },
-  { id: 157, title: "The New Dawn", locked: true },
-];
-
-const PAGES = generatePages(12);
+// Pages don't carry stored dimensions, so the loading placeholder uses a
+// typical manhwa page aspect ratio to minimize layout shift while it loads.
+const DEFAULT_PAGE_RATIO = 1.45;
 
 const css = `
-  ${PLAYFAIR_MONTSERRAT_FONTS}
+  ${FONT_IMPORT}
   ${baseCss}
 
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -112,21 +102,28 @@ function MoonIcon() {
 
 export default function Reader() {
   const navigate = useNavigate();
-  const { series, chapter } = useParams();
-  const CURRENT = Number(chapter) || 156;
+  const { series: seriesId, chapter } = useParams();
+  const CURRENT = Number(chapter);
   const screenWidth = useWindowSize();
   const isMobile = screenWidth < 768;
+  const { user } = useAuth();
+
+  const [seriesInfo, setSeriesInfo] = useState(null);
+  const [chapterData, setChapterData] = useState(null);
+  const [allChapters, setAllChapters] = useState([]);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [readMode, setReadMode] = useState("scroll"); // scroll | paged
   const [width, setWidth] = useState("comfortable"); // compact | comfortable | wide | full
   const [showUI, setShowUI] = useState(true);
   const [showChapters, setShowChapters] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [bookmarked, setBookmarked] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [loadedPages, setLoadedPages] = useState({});
   const [isDark, setIsDark] = useState(true);
   const [comment, setComment] = useState("");
+  const [bookmarked, setBookmarked] = useState(false);
   const scrollRef = useRef(null);
   const hideTimer = useRef(null);
   const pageRefs = useRef({});
@@ -134,7 +131,58 @@ export default function Reader() {
   const widthMap = { compact: 560, comfortable: 720, wide: 900, full: "100%" };
   const maxW = widthMap[width];
 
-  const progress = Math.round((currentPage / PAGES.length) * 100);
+  const pages = chapterData?.pages || [];
+  const progress = pages.length ? Math.round((currentPage / pages.length) * 100) : 0;
+
+  // Fetch series, this chapter's pages, and the full chapter list.
+  useEffect(() => {
+    let cancelled = false;
+    setDataLoading(true);
+    setDataError(null);
+    Promise.all([
+      getSeriesById(seriesId),
+      getChapterWithPages(seriesId, CURRENT),
+      getChaptersForSeries(seriesId),
+    ])
+      .then(([s, ch, chs]) => {
+        if (cancelled) return;
+        setSeriesInfo(s);
+        setChapterData(ch);
+        setAllChapters(chs);
+      })
+      .catch((err) => { if (!cancelled) setDataError(err.message); })
+      .finally(() => { if (!cancelled) setDataLoading(false); });
+    return () => { cancelled = true; };
+  }, [seriesId, CURRENT]);
+
+  // Whether the signed-in user has this series bookmarked.
+  useEffect(() => {
+    if (!user || !seriesInfo) { setBookmarked(false); return; }
+    isBookmarked(user.id, seriesInfo.id).then(setBookmarked).catch(() => setBookmarked(false));
+  }, [user, seriesInfo]);
+
+  const toggleBookmark = async () => {
+    if (!user) { navigate("/auth"); return; }
+    if (bookmarked) {
+      await removeBookmark(user.id, seriesInfo.id);
+      setBookmarked(false);
+    } else {
+      await addBookmark(user.id, seriesInfo.id);
+      setBookmarked(true);
+    }
+  };
+
+  // Record this chapter as read for the signed-in user.
+  useEffect(() => {
+    if (user && seriesInfo && chapterData) {
+      recordChapterRead(user.id, seriesInfo.id, chapterData.id).catch(() => {});
+    }
+  }, [user, seriesInfo, chapterData]);
+
+  const chaptersAsc = [...allChapters].sort((a, b) => a.chapter_number - b.chapter_number);
+  const chapterIdx = chaptersAsc.findIndex((c) => c.chapter_number === CURRENT);
+  const prevChapter = chapterIdx > 0 ? chaptersAsc[chapterIdx - 1] : null;
+  const nextChapter = chapterIdx >= 0 && chapterIdx < chaptersAsc.length - 1 ? chaptersAsc[chapterIdx + 1] : null;
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -177,7 +225,7 @@ export default function Reader() {
   }, [resetHideTimer]);
 
   const goPage = (n) => {
-    const clamped = Math.max(1, Math.min(PAGES.length, n));
+    const clamped = Math.max(1, Math.min(pages.length, n));
     setCurrentPage(clamped);
     if (readMode === "scroll" && pageRefs.current[clamped]) {
       pageRefs.current[clamped].scrollIntoView({ behavior: "smooth", block: "start" });
@@ -187,14 +235,33 @@ export default function Reader() {
   const handlePageLoad = (id) => setLoadedPages(p => ({ ...p, [id]: true }));
 
   const bg = isDark ? "#080810" : "#f0ece4";
-  const text = isDark ? "#e8e0d0" : "#1a1410";
-  const sub = isDark ? "rgba(232,224,208,0.45)" : "rgba(26,20,16,0.5)";
+  const text = isDark ? "#f7f3ea" : "#1a1410";
+  const sub = isDark ? "rgba(247,243,234,0.45)" : "rgba(26,20,16,0.5)";
   const surface = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)";
   const border = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.1)";
   const readerBg = isDark ? "#0d0d18" : "#e8e4dc";
 
+  if (dataLoading) {
+    return (
+      <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: bg, color: text, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>
+        <style>{css}</style>
+        <p style={{ fontSize: 14, color: sub, fontWeight: 400 }}>Ачааллаж байна...</p>
+      </div>
+    );
+  }
+
+  if (dataError || !chapterData) {
+    return (
+      <div style={{ height: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, background: bg, color: text, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>
+        <style>{css}</style>
+        <p style={{ fontSize: 14, color: "#e07070", fontWeight: 400 }}>{dataError || "Бүлэг олдсонгүй"}</p>
+        <button className="nav-btn" onClick={() => navigate(`/series/${seriesId}`)} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: text, padding: "10px 20px", borderRadius: 6, fontSize: 13, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>← Цуврал руу буцах</button>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: bg, color: text, fontFamily: "'Montserrat', sans-serif", overflow: "hidden", transition: "background 0.3s" }}>
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: bg, color: text, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", overflow: "hidden", transition: "background 0.3s" }}>
       <style>{css}</style>
 
       {/* ── TOP BAR ── */}
@@ -214,11 +281,11 @@ export default function Reader() {
             <button className="icon-btn" onClick={() => navigate("/")} style={{ color: sub, padding: 8, borderRadius: 6 }}>
   <HomeIcon />
 </button>
-            {!isMobile && (
+            {!isMobile && seriesInfo && (
               <>
-                <span style={{ color: sub, fontSize: 12 }}>/</span>
-                <span onClick={() => navigate("/series/1")} style={{ fontSize: 12, color: sub, fontFamily: "'Montserrat'", fontWeight: 300, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}>The Remarried Empress</span>
-                <span style={{ color: sub, fontSize: 12 }}>/</span>
+                <span style={{ color: sub, fontSize: 13 }}>/</span>
+                <span onClick={() => navigate(`/series/${seriesInfo.id}`)} style={{ fontSize: 13, color: sub, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 400, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}>{seriesInfo.title}</span>
+                <span style={{ color: sub, fontSize: 13 }}>/</span>
               </>
             )}
           </div>
@@ -233,8 +300,8 @@ export default function Reader() {
                 cursor: "pointer", color: text, maxWidth: "100%",
               }}>
                 <ListIcon />
-                <span style={{ fontFamily: "'Playfair Display', serif", fontSize: isMobile ? 12 : 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {isMobile ? `Ch. ${CURRENT}` : `Ch. ${CURRENT} — When Empires Fall`}
+                <span style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: isMobile ? 13 : 15, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {isMobile ? `Ch. ${CURRENT}` : `Ch. ${CURRENT}${chapterData?.title ? ` — ${chapterData.title}` : ""}`}
                 </span>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="2.5" style={{ flexShrink: 0, transform: showChapters ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}><path d="M6 9l6 6 6-6"/></svg>
               </button>
@@ -249,20 +316,19 @@ export default function Reader() {
                   width: 280, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
                   zIndex: 300,
                 }}>
-                  <div style={{ padding: "10px 14px", borderBottom: `1px solid ${border}`, fontSize: 10, color: "#c9a84c", letterSpacing: "0.15em", textTransform: "uppercase", fontWeight: 500 }}>Chapters</div>
-                  {CHAPTERS.map(ch => (
-                    <div key={ch.id} className="chapter-item" onClick={() => { if (!ch.locked) { navigate(`/read/${series}/${ch.id}`); setShowChapters(false); } }} style={{
+                  <div style={{ padding: "10px 14px", borderBottom: `1px solid ${border}`, fontSize: 12, color: "#c9a84c", letterSpacing: "0.15em", textTransform: "uppercase", fontWeight: 500 }}>Chapters</div>
+                  {chaptersAsc.slice().reverse().map(ch => (
+                    <div key={ch.id} className="chapter-item" onClick={() => { navigate(`/read/${seriesId}/${ch.chapter_number}`); setShowChapters(false); }} style={{
                       padding: "12px 16px",
                       display: "flex", alignItems: "center", justifyContent: "space-between",
-                      background: ch.id === CURRENT ? "rgba(201,168,76,0.08)" : "transparent",
-                      borderLeft: ch.id === CURRENT ? "2px solid #c9a84c" : "2px solid transparent",
+                      background: ch.chapter_number === CURRENT ? "rgba(201,168,76,0.08)" : "transparent",
+                      borderLeft: ch.chapter_number === CURRENT ? "2px solid #c9a84c" : "2px solid transparent",
                     }}>
                       <div>
-                        <div style={{ fontSize: 13, color: ch.locked ? sub : text, fontFamily: "'Playfair Display', serif" }}>Ch. {ch.id}</div>
-                        <div style={{ fontSize: 11, color: sub, marginTop: 2, fontWeight: 300 }}>{ch.title}</div>
+                        <div style={{ fontSize: 14, color: text, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>Ch. {ch.chapter_number}</div>
+                        <div style={{ fontSize: 13, color: sub, marginTop: 2, fontWeight: 400 }}>{ch.title}</div>
                       </div>
-                      {ch.id === CURRENT && <span style={{ fontSize: 9, color: "#c9a84c", background: "rgba(201,168,76,0.1)", padding: "2px 8px", borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase" }}>Reading</span>}
-                      {ch.locked && <span style={{ fontSize: 16 }}>🔒</span>}
+                      {ch.chapter_number === CURRENT && <span style={{ fontSize: 11, color: "#c9a84c", background: "rgba(201,168,76,0.1)", padding: "2px 8px", borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase" }}>Reading</span>}
                     </div>
                   ))}
                 </div>
@@ -272,7 +338,7 @@ export default function Reader() {
 
           {/* Right: Actions */}
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <button className="icon-btn" onClick={() => setBookmarked(!bookmarked)} style={{ color: sub, padding: 8, borderRadius: 6 }}>
+            <button className="icon-btn" onClick={toggleBookmark} style={{ color: sub, padding: 8, borderRadius: 6 }}>
               <BookmarkIcon filled={bookmarked} />
             </button>
             <button className="icon-btn" onClick={() => { setShowComments(!showComments); setShowSettings(false); setShowChapters(false); }} style={{ color: showComments ? "#c9a84c" : sub, padding: 8, borderRadius: 6 }}>
@@ -302,16 +368,16 @@ export default function Reader() {
           borderRadius: 10, padding: "20px", width: isMobile ? "auto" : 260,
           boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
         }}>
-          <div style={{ fontSize: 10, color: "#c9a84c", letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 16, fontWeight: 500 }}>Уншигчийн тохиргоо</div>
+          <div style={{ fontSize: 12, color: "#c9a84c", letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 16, fontWeight: 500 }}>Уншигчийн тохиргоо</div>
 
           {/* Read mode */}
           <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 11, color: sub, marginBottom: 8, fontWeight: 300, letterSpacing: "0.08em", textTransform: "uppercase" }}>Уншилтын горим</div>
+            <div style={{ fontSize: 13, color: sub, marginBottom: 8, fontWeight: 400, letterSpacing: "0.08em", textTransform: "uppercase" }}>Уншилтын горим</div>
             <div style={{ display: "flex", gap: 8 }}>
               {[["scroll", "Scroll"], ["paged", "Paged"]].map(([val, label]) => (
                 <button key={val} className="setting-btn" onClick={() => setReadMode(val)} style={{
-                  flex: 1, padding: "8px", borderRadius: 6, fontSize: 12,
-                  fontFamily: "'Montserrat'", fontWeight: 400, cursor: "pointer",
+                  flex: 1, padding: "8px", borderRadius: 6, fontSize: 13,
+                  fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 400, cursor: "pointer",
                   background: readMode === val ? "rgba(201,168,76,0.15)" : surface,
                   border: `1px solid ${readMode === val ? "rgba(201,168,76,0.4)" : border}`,
                   color: readMode === val ? "#c9a84c" : sub,
@@ -322,12 +388,12 @@ export default function Reader() {
 
           {/* Хуудасны өргөн */}
           <div>
-            <div style={{ fontSize: 11, color: sub, marginBottom: 8, fontWeight: 300, letterSpacing: "0.08em", textTransform: "uppercase" }}>Хуудасны өргөн</div>
+            <div style={{ fontSize: 13, color: sub, marginBottom: 8, fontWeight: 400, letterSpacing: "0.08em", textTransform: "uppercase" }}>Хуудасны өргөн</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
               {[["compact", "Compact"], ["comfortable", "Normal"], ["wide", "Wide"], ["full", "Full"]].map(([val, label]) => (
                 <button key={val} className="setting-btn" onClick={() => setWidth(val)} style={{
-                  padding: "8px", borderRadius: 6, fontSize: 11,
-                  fontFamily: "'Montserrat'", fontWeight: 400, cursor: "pointer",
+                  padding: "8px", borderRadius: 6, fontSize: 13,
+                  fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 400, cursor: "pointer",
                   background: width === val ? "rgba(201,168,76,0.15)" : surface,
                   border: `1px solid ${width === val ? "rgba(201,168,76,0.4)" : border}`,
                   color: width === val ? "#c9a84c" : sub,
@@ -347,8 +413,8 @@ export default function Reader() {
 
         {/* Pages */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingBottom: 80 }}>
-          {(readMode === "scroll" ? PAGES : [PAGES[currentPage - 1]]).map((page, i) => (
-            <div key={page.id} ref={el => pageRefs.current[page.id] = el} style={{
+          {(readMode === "scroll" ? pages : [pages[currentPage - 1]]).filter(Boolean).map((page) => (
+            <div key={page.id} ref={el => pageRefs.current[page.page_number] = el} style={{
               width: typeof maxW === "number" ? maxW : "100%",
               maxWidth: typeof maxW === "number" ? maxW : "100%",
               margin: readMode === "scroll" ? "0" : "20px auto",
@@ -361,16 +427,16 @@ export default function Reader() {
                   position: "absolute", top: 12, right: 12, zIndex: 10,
                   background: "rgba(8,8,16,0.7)", backdropFilter: "blur(8px)",
                   borderRadius: 4, padding: "3px 8px",
-                  fontSize: 10, color: "rgba(201,168,76,0.7)",
-                  fontFamily: "'Montserrat'", fontWeight: 300,
+                  fontSize: 12, color: "rgba(201,168,76,0.7)",
+                  fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 400,
                   border: "1px solid rgba(201,168,76,0.15)",
-                }}>{page.id} / {PAGES.length}</div>
+                }}>{page.page_number} / {pages.length}</div>
               )}
 
               {/* Loading placeholder */}
-              {!loadedPages[page.id] && (
+              {!loadedPages[page.page_number] && (
                 <div style={{
-                  width: "100%", paddingBottom: `${(page.height / page.width) * 100}%`,
+                  width: "100%", paddingBottom: `${DEFAULT_PAGE_RATIO * 100}%`,
                   background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.05)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   position: "relative",
@@ -385,17 +451,17 @@ export default function Reader() {
                 </div>
               )}
               <img
-                className={`page-img ${loadedPages[page.id] ? "loaded" : "loading"}`}
-                src={page.src}
-                alt={`Page ${page.id}`}
-                onLoad={() => handlePageLoad(page.id)}
-                style={{ display: loadedPages[page.id] ? "block" : "none" }}
+                className={`page-img ${loadedPages[page.page_number] ? "loaded" : "loading"}`}
+                src={page.image_url}
+                alt={`Page ${page.page_number}`}
+                onLoad={() => handlePageLoad(page.page_number)}
+                style={{ display: loadedPages[page.page_number] ? "block" : "none" }}
               />
             </div>
           ))}
 
           {/* End of Chapter */}
-          {(readMode === "scroll" || currentPage === PAGES.length) && (
+          {pages.length > 0 && (readMode === "scroll" || currentPage === pages.length) && (
             <div className="fade-in" style={{
               width: typeof maxW === "number" ? Math.min(maxW, 720) : 720,
               maxWidth: "90vw",
@@ -406,25 +472,28 @@ export default function Reader() {
               textAlign: "center",
             }}>
               <div style={{ fontSize: 28, marginBottom: 12 }}>✦</div>
-              <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, color: text, marginBottom: 8 }}>End of Chapter {CURRENT}</h3>
-              <p style={{ fontSize: 13, color: sub, fontWeight: 300, marginBottom: 28, lineHeight: 1.6 }}>
-                When Empires Fall · The Remarried Empress
+              <h3 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 21, fontWeight: 700, color: text, marginBottom: 8 }}>End of Chapter {CURRENT}</h3>
+              <p style={{ fontSize: 14, color: sub, fontWeight: 400, marginBottom: 28, lineHeight: 1.6 }}>
+                {chapterData?.title} · {seriesInfo?.title}
               </p>
               <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-                <button className="nav-btn" onClick={() => navigate(`/read/empress/${CURRENT - 1}`)} style={{
-  background: surface, border: `1px solid ${border}`,
-  color: sub, padding: "11px 22px",
-                  borderRadius: 6, fontSize: 12,
-                  fontFamily: "'Montserrat'", fontWeight: 400, letterSpacing: "0.08em",
+                <button className="nav-btn" disabled={!prevChapter} onClick={() => prevChapter && navigate(`/read/${seriesId}/${prevChapter.chapter_number}`)} style={{
+                  background: prevChapter ? surface : "transparent", border: `1px solid ${prevChapter ? border : "transparent"}`,
+                  color: prevChapter ? sub : "rgba(247,243,234,0.2)", padding: "11px 22px",
+                  borderRadius: 6, fontSize: 13,
+                  fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 400, letterSpacing: "0.08em",
                   display: "flex", alignItems: "center", gap: 8,
+                  cursor: prevChapter ? "pointer" : "default",
                 }}><ChevronLeft /> Өмнөх Бүлэг</button>
-                <button className="nav-btn" onClick={() => navigate(`/read/empress/${CURRENT + 1}`)} style={{
-  background: "linear-gradient(135deg, #c9a84c, #8a6020)",
-  color: "#080810", padding: "11px 22px",
-                  borderRadius: 6, fontSize: 12,
-                  fontFamily: "'Montserrat'", fontWeight: 500, letterSpacing: "0.1em",
+                <button className="nav-btn" disabled={!nextChapter} onClick={() => nextChapter && navigate(`/read/${seriesId}/${nextChapter.chapter_number}`)} style={{
+                  background: nextChapter ? "linear-gradient(135deg, #c9a84c, #8a6020)" : "transparent",
+                  border: `1px solid ${nextChapter ? "transparent" : border}`,
+                  color: nextChapter ? "#080810" : "rgba(247,243,234,0.2)", padding: "11px 22px",
+                  borderRadius: 6, fontSize: 13,
+                  fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500, letterSpacing: "0.1em",
                   display: "flex", alignItems: "center", gap: 8,
-                  boxShadow: "0 6px 20px rgba(201,168,76,0.3)",
+                  boxShadow: nextChapter ? "0 6px 20px rgba(201,168,76,0.3)" : "none",
+                  cursor: nextChapter ? "pointer" : "default",
                 }}>Дараагийн Бүлэг <ChevronRight /></button>
               </div>
             </div>
@@ -448,46 +517,46 @@ export default function Reader() {
             <button className="nav-btn" onClick={() => goPage(currentPage - 1)} disabled={currentPage === 1} style={{
               background: currentPage === 1 ? "transparent" : surface,
               border: `1px solid ${currentPage === 1 ? "transparent" : border}`,
-              color: currentPage === 1 ? "rgba(232,224,208,0.2)" : text,
+              color: currentPage === 1 ? "rgba(247,243,234,0.2)" : text,
               padding: "8px 20px", borderRadius: 6,
               display: "flex", alignItems: "center", gap: 6,
-              fontSize: 13, fontFamily: "'Montserrat'",
+              fontSize: 14, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif",
             }}><ChevronLeft /> Previous</button>
 
             {/* Page dots */}
             <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
-              {PAGES.map(p => (
-                <div key={p.id} onClick={() => goPage(p.id)} style={{
-                  width: p.id === currentPage ? 18 : 6,
+              {pages.map(p => (
+                <div key={p.id} onClick={() => goPage(p.page_number)} style={{
+                  width: p.page_number === currentPage ? 18 : 6,
                   height: 6, borderRadius: 3,
-                  background: p.id === currentPage ? "#c9a84c" : (isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"),
+                  background: p.page_number === currentPage ? "#c9a84c" : (isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"),
                   cursor: "pointer",
                   transition: "all 0.2s ease",
                 }} />
               ))}
             </div>
 
-            <button className="nav-btn" onClick={() => goPage(currentPage + 1)} disabled={currentPage === PAGES.length} style={{
-              background: currentPage === PAGES.length ? "transparent" : "linear-gradient(135deg, #c9a84c, #8a6020)",
-              border: `1px solid ${currentPage === PAGES.length ? "transparent" : "transparent"}`,
-              color: currentPage === PAGES.length ? "rgba(232,224,208,0.2)" : "#080810",
+            <button className="nav-btn" onClick={() => goPage(currentPage + 1)} disabled={currentPage === pages.length} style={{
+              background: currentPage === pages.length ? "transparent" : "linear-gradient(135deg, #c9a84c, #8a6020)",
+              border: `1px solid ${currentPage === pages.length ? "transparent" : "transparent"}`,
+              color: currentPage === pages.length ? "rgba(247,243,234,0.2)" : "#080810",
               padding: "8px 20px", borderRadius: 6,
               display: "flex", alignItems: "center", gap: 6,
-              fontSize: 13, fontFamily: "'Montserrat'", fontWeight: 500,
-              boxShadow: currentPage === PAGES.length ? "none" : "0 4px 16px rgba(201,168,76,0.3)",
+              fontSize: 14, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500,
+              boxShadow: currentPage === pages.length ? "none" : "0 4px 16px rgba(201,168,76,0.3)",
             }}>Next <ChevronRight /></button>
           </div>
         ) : (
           /* Scroll progress bar */
           <div style={{ height: 60, display: "flex", alignItems: "center", padding: "0 24px", gap: 16 }}>
-            <span style={{ fontSize: 12, color: sub, fontFamily: "'Montserrat'", fontWeight: 300, minWidth: 30 }}>
+            <span style={{ fontSize: 13, color: sub, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 400, minWidth: 30 }}>
               {currentPage}
             </span>
             <div style={{ flex: 1, height: 4, background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.1)", borderRadius: 2, position: "relative", cursor: "pointer" }}
               onClick={e => {
                 const rect = e.currentTarget.getBoundingClientRect();
                 const ratio = (e.clientX - rect.left) / rect.width;
-                goPage(Math.round(ratio * PAGES.length));
+                goPage(Math.round(ratio * pages.length));
               }}>
               <div style={{ height: "100%", width: `${progress}%`, background: "linear-gradient(90deg, #c9a84c, #f0d080)", borderRadius: 2, transition: "width 0.15s" }} />
               <div className="progress-thumb" style={{
@@ -498,10 +567,10 @@ export default function Reader() {
                 boxShadow: "0 0 8px rgba(201,168,76,0.6)",
               }} />
             </div>
-            <span style={{ fontSize: 12, color: sub, fontFamily: "'Montserrat'", fontWeight: 300, minWidth: 30, textAlign: "right" }}>
-              {PAGES.length}
+            <span style={{ fontSize: 13, color: sub, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 400, minWidth: 30, textAlign: "right" }}>
+              {pages.length}
             </span>
-            <span style={{ fontSize: 11, color: "#c9a84c", fontFamily: "'Montserrat'", fontWeight: 500, minWidth: 36 }}>
+            <span style={{ fontSize: 13, color: "#c9a84c", fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500, minWidth: 36 }}>
               {progress}%
             </span>
           </div>
@@ -521,8 +590,8 @@ export default function Reader() {
           overflow: "hidden",
         }}>
           <div style={{ padding: "16px 18px", borderBottom: `1px solid ${border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, fontWeight: 700, color: text }}>сэтгэгдэл</span>
-            <span style={{ fontSize: 10, color: sub, fontFamily: "'Montserrat'", fontWeight: 300 }}>Ch. {CURRENT} · 3 сэтгэгдэл</span>
+            <span style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 17, fontWeight: 700, color: text }}>сэтгэгдэл</span>
+            <span style={{ fontSize: 12, color: sub, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 400 }}>Ch. {CURRENT} · 3 сэтгэгдэл</span>
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
@@ -536,14 +605,14 @@ export default function Reader() {
                   width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
                   background: "linear-gradient(135deg, #c9a84c, #8a6020)",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 13, color: "#080810", fontWeight: 600, fontFamily: "'Montserrat'",
+                  fontSize: 14, color: "#080810", fontWeight: 600, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif",
                 }}>{c.avatar}</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 4 }}>
-                    <span style={{ fontSize: 12, color: "#c9a84c", fontWeight: 500, fontFamily: "'Montserrat'" }}>{c.user}</span>
-                    <span style={{ fontSize: 10, color: sub, fontWeight: 300, fontFamily: "'Montserrat'" }}>{c.time}</span>
+                    <span style={{ fontSize: 13, color: "#c9a84c", fontWeight: 500, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>{c.user}</span>
+                    <span style={{ fontSize: 12, color: sub, fontWeight: 400, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>{c.time}</span>
                   </div>
-                  <p style={{ fontSize: 12, color: text, lineHeight: 1.6, fontWeight: 300, fontFamily: "'Montserrat'" }}>{c.text}</p>
+                  <p style={{ fontSize: 14, color: text, lineHeight: 1.6, fontWeight: 400, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>{c.text}</p>
                 </div>
               </div>
             ))}
@@ -561,7 +630,7 @@ export default function Reader() {
                 background: surface,
                 border: `1px solid ${border}`,
                 borderRadius: 6, resize: "none",
-                fontFamily: "'Montserrat'", fontSize: 12, fontWeight: 300,
+                fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 13, fontWeight: 400,
                 color: text, marginBottom: 8,
                 transition: "border-color 0.2s",
               }}
@@ -570,8 +639,8 @@ export default function Reader() {
               width: "100%", padding: "9px",
               background: comment.trim() ? "linear-gradient(135deg, #c9a84c, #8a6020)" : surface,
               border: `1px solid ${comment.trim() ? "transparent" : border}`,
-              borderRadius: 6, fontSize: 11,
-              fontFamily: "'Montserrat'", fontWeight: 500,
+              borderRadius: 6, fontSize: 13,
+              fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500,
               letterSpacing: "0.1em", textTransform: "uppercase",
               color: comment.trim() ? "#080810" : sub,
               cursor: comment.trim() ? "pointer" : "default",

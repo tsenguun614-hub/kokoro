@@ -6,12 +6,14 @@ export const NAV_ITEMS = [
   { label: "Bookmarks", path: "/profile" },
 ];
 
-export const PLAYFAIR_MONTSERRAT_FONTS =
-  "@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400;1,500&family=Montserrat:wght@300;400;500;600&display=swap');";
+// Matches dollsmanga.mn — Noto Sans has full, well-weighted Cyrillic glyph
+// coverage (built for broad script support), with Inter as a close backup.
+export const FONT_STACK = "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif";
 
-// Shared keyframes/utility classes used across every page. Font-agnostic —
-// pages that use a different type family (e.g. Admin's DM Sans) prepend
-// their own @import instead of PLAYFAIR_MONTSERRAT_FONTS.
+export const FONT_IMPORT =
+  "@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700;900&family=Inter:wght@400;500;700;900&display=swap');";
+
+// Shared keyframes/utility classes used across every page.
 export const baseCss = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   ::-webkit-scrollbar { width: 5px; }

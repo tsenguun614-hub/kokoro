@@ -2,10 +2,11 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import useWindowSize from "./useWindowSize";
 import Header from "./components/Header";
-import { PLAYFAIR_MONTSERRAT_FONTS, baseCss } from "./sharedStyles";
+import { FONT_IMPORT, baseCss } from "./sharedStyles";
+import { signIn, signUp } from "./lib/auth";
 
 const css = `
-  ${PLAYFAIR_MONTSERRAT_FONTS}
+  ${FONT_IMPORT}
   ${baseCss}
 
   .auth-input {
@@ -14,10 +15,10 @@ const css = `
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.1);
     border-radius: 6px;
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif;
     font-size: 14px;
     font-weight: 300;
-    color: #e8e0d0;
+    color: #f7f3ea;
     transition: border-color 0.2s, background 0.2s;
     outline: none;
   }
@@ -25,7 +26,7 @@ const css = `
     border-color: rgba(201,168,76,0.5);
     background: rgba(255,255,255,0.06);
   }
-  .auth-input::placeholder { color: rgba(232,224,208,0.25); }
+  .auth-input::placeholder { color: rgba(247,243,234,0.25); }
 
   .social-btn {
     cursor: pointer;
@@ -45,13 +46,13 @@ const css = `
     cursor: pointer;
     transition: color 0.2s;
     background: none; border: none;
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif;
   }
   .toggle-link:hover { color: #f0d080 !important; }
 
   .forgot-link {
     cursor: pointer; background: none; border: none;
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif;
     transition: color 0.2s;
   }
   .forgot-link:hover { color: #f0d080 !important; }
@@ -101,14 +102,22 @@ export default function Auth() {
     return e;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      if (mode === "login") {
+        await signIn({ email: form.email, password: form.password });
+      } else {
+        await signUp({ email: form.email, password: form.password, username: form.name });
+      }
       navigate("/");
-    }, 1400);
+    } catch (err) {
+      setErrors({ form: err.message });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const switchMode = (m) => {
@@ -118,7 +127,7 @@ export default function Auth() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#080810", color: "#e8e0d0", fontFamily: "'Montserrat', sans-serif", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", background: "#080810", color: "#f7f3ea", fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", display: "flex", flexDirection: "column" }}>
       <style>{css}</style>
 
       {/* Ambient orbs */}
@@ -134,12 +143,12 @@ export default function Auth() {
         {!isMobile && (
         <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
           <div>
-            <div style={{ fontSize: 10, color: "#c9a84c", letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 14 }}>✦ Kokoro Manhwa</div>
-            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 42, fontWeight: 700, lineHeight: 1.2, marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: "#c9a84c", letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 14 }}>✦ Kokoro Manhwa</div>
+            <h2 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 42, fontWeight: 700, lineHeight: 1.2, marginBottom: 16 }}>
               Your Story<br />
               <span className="gold-shimmer">Awaits You.</span>
             </h2>
-            <p style={{ fontSize: 14, fontWeight: 300, color: "rgba(232,224,208,0.5)", lineHeight: 1.8, maxWidth: 380 }}>
+            <p style={{ fontSize: 15, fontWeight: 400, color: "rgba(247,243,234,0.5)", lineHeight: 1.8, maxWidth: 380 }}>
               Монгол хэлээр хамгийн гоё romance манхваг эндээс. Бүртгүүлээд уншилтын аяллаа одооноос эхлүүлээрэй!
             </p>
           </div>
@@ -152,16 +161,16 @@ export default function Auth() {
               ["✦", "Join the community and share your reactions"],
             ].map(([icon, text], i) => (
               <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                <span style={{ color: "#c9a84c", fontSize: 10, marginTop: 4, flexShrink: 0 }}>{icon}</span>
-                <span style={{ fontSize: 13, fontWeight: 300, color: "rgba(232,224,208,0.55)", lineHeight: 1.6 }}>{text}</span>
+                <span style={{ color: "#c9a84c", fontSize: 12, marginTop: 4, flexShrink: 0 }}>{icon}</span>
+                <span style={{ fontSize: 14, fontWeight: 400, color: "rgba(247,243,234,0.55)", lineHeight: 1.6 }}>{text}</span>
               </div>
             ))}
           </div>
 
           {/* Quote */}
           <div style={{ background: "linear-gradient(135deg, rgba(201,168,76,0.08), rgba(140,80,40,0.08))", borderRadius: 12, padding: "28px", border: "1px solid rgba(201,168,76,0.15)", position: "relative", overflow: "hidden", marginTop: 8 }}>
-            <div style={{ fontSize: 60, color: "rgba(201,168,76,0.1)", fontFamily: "Playfair Display", position: "absolute", top: -8, left: 16, lineHeight: 1 }}>"</div>
-            <p style={{ fontFamily: "Playfair Display, serif", fontSize: 16, fontStyle: "italic", color: "rgba(232,224,208,0.75)", lineHeight: 1.8, position: "relative", zIndex: 1, marginBottom: 14 }}>
+            <div style={{ fontSize: 60, color: "rgba(201,168,76,0.1)", fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", position: "absolute", top: -8, left: 16, lineHeight: 1 }}>"</div>
+            <p style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 17, fontStyle: "italic", color: "rgba(247,243,234,0.75)", lineHeight: 1.8, position: "relative", zIndex: 1, marginBottom: 14 }}>
               Бидэнтэй нэгдсэнд баярлалаа.
             </p>
           </div>
@@ -181,9 +190,9 @@ export default function Auth() {
               {[["login", "Нэвтрэх"], ["register", "Бүртгүүлэх"]].map(([val, label]) => (
                 <button key={val} className="tab-btn" onClick={() => switchMode(val)} style={{
                   flex: 1, padding: "10px",
-                  borderRadius: 6, fontSize: 13,
-                  fontFamily: "'Montserrat'", fontWeight: mode === val ? 500 : 300,
-                  color: mode === val ? "#080810" : "rgba(232,224,208,0.4)",
+                  borderRadius: 6, fontSize: 14,
+                  fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: mode === val ? 500 : 300,
+                  color: mode === val ? "#080810" : "rgba(247,243,234,0.4)",
                   background: mode === val ? "linear-gradient(135deg, #c9a84c, #8a6020)" : "transparent",
                   letterSpacing: "0.05em",
                   boxShadow: mode === val ? "0 4px 14px rgba(201,168,76,0.3)" : "none",
@@ -193,10 +202,10 @@ export default function Auth() {
             </div>
 
             <div className="fade-up fade-up-1">
-              <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, fontWeight: 700, marginBottom: 6 }}>
+              <h3 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 24, fontWeight: 700, marginBottom: 6 }}>
                 {mode === "login" ? "Тавтай Морил" : "Join Kokoro"}
               </h3>
-              <p style={{ fontSize: 13, fontWeight: 300, color: "rgba(232,224,208,0.4)", marginBottom: 28 }}>
+              <p style={{ fontSize: 14, fontWeight: 400, color: "rgba(247,243,234,0.4)", marginBottom: 28 }}>
 </p>
             </div>
 
@@ -209,10 +218,10 @@ export default function Auth() {
                   border: "1px solid rgba(255,255,255,0.1)",
                   borderRadius: 6, cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                  color: "rgba(232,224,208,0.6)",
-                  fontFamily: "'Montserrat'", fontSize: 13, fontWeight: 400,
+                  color: "rgba(247,243,234,0.6)",
+                  fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 14, fontWeight: 400,
                 }}>
-                  <span style={{ fontWeight: 700, color, fontSize: 15 }}>{icon}</span>
+                  <span style={{ fontWeight: 700, color, fontSize: 16 }}>{icon}</span>
                   {label}
                 </button>
               ))}
@@ -221,7 +230,7 @@ export default function Auth() {
             {/* Divider */}
             <div className="fade-up fade-up-2" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
               <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
-              <span style={{ fontSize: 11, color: "rgba(232,224,208,0.25)", fontWeight: 300, letterSpacing: "0.1em" }}>OR</span>
+              <span style={{ fontSize: 13, color: "rgba(247,243,234,0.25)", fontWeight: 400, letterSpacing: "0.1em" }}>OR</span>
               <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
             </div>
 
@@ -230,39 +239,39 @@ export default function Auth() {
 
               {mode === "register" && (
                 <div>
-                  <label style={{ fontSize: 11, color: "rgba(232,224,208,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>НЭР</label>
+                  <label style={{ fontSize: 13, color: "rgba(247,243,234,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>НЭР</label>
                   <input className="auth-input" placeholder="Таны нэр" value={form.name} onChange={e => update("name", e.target.value)} />
-                  {errors.name && <p style={{ fontSize: 11, color: "#e07070", marginTop: 5, fontWeight: 300 }}>{errors.name}</p>}
+                  {errors.name && <p style={{ fontSize: 13, color: "#e07070", marginTop: 5, fontWeight: 400 }}>{errors.name}</p>}
                 </div>
               )}
 
               <div>
-                <label style={{ fontSize: 11, color: "rgba(232,224,208,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>ИМЭЙЛ ХАЯГ</label>
+                <label style={{ fontSize: 13, color: "rgba(247,243,234,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>ИМЭЙЛ ХАЯГ</label>
                 <input className="auth-input" type="email" placeholder="example@gmail.com" value={form.email} onChange={e => update("email", e.target.value)} />
-                {errors.email && <p style={{ fontSize: 11, color: "#e07070", marginTop: 5, fontWeight: 300 }}>{errors.email}</p>}
+                {errors.email && <p style={{ fontSize: 13, color: "#e07070", marginTop: 5, fontWeight: 400 }}>{errors.email}</p>}
               </div>
 
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
-                  <label style={{ fontSize: 11, color: "rgba(232,224,208,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 400 }}>НУУЦ ҮГ</label>
+                  <label style={{ fontSize: 13, color: "rgba(247,243,234,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 400 }}>НУУЦ ҮГ</label>
                   {mode === "login" && (
-                    <button className="forgot-link" style={{ fontSize: 11, color: "#c9a84c", fontWeight: 300 }}>Нууц үг мартсан уу?</button>
+                    <button className="forgot-link" style={{ fontSize: 13, color: "#c9a84c", fontWeight: 400 }}>Нууц үг мартсан уу?</button>
                   )}
                 </div>
                 <div style={{ position: "relative" }}>
                   <input className="auth-input" type={showPass ? "text" : "password"} placeholder="••••••••" value={form.password} onChange={e => update("password", e.target.value)} style={{ paddingRight: 44 }} />
-                  <button onClick={() => setShowPass(!showPass)} style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(232,224,208,0.3)", fontSize: 13, padding: 0 }}>
+                  <button onClick={() => setShowPass(!showPass)} style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(247,243,234,0.3)", fontSize: 14, padding: 0 }}>
                     {showPass ? "Hide" : "Show"}
                   </button>
                 </div>
-                {errors.password && <p style={{ fontSize: 11, color: "#e07070", marginTop: 5, fontWeight: 300 }}>{errors.password}</p>}
+                {errors.password && <p style={{ fontSize: 13, color: "#e07070", marginTop: 5, fontWeight: 400 }}>{errors.password}</p>}
               </div>
 
               {mode === "register" && (
                 <div>
-                  <label style={{ fontSize: 11, color: "rgba(232,224,208,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>Confirm НУУЦ ҮГ</label>
+                  <label style={{ fontSize: 13, color: "rgba(247,243,234,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>Confirm НУУЦ ҮГ</label>
                   <input className="auth-input" type={showPass ? "text" : "password"} placeholder="••••••••" value={form.confirmPassword} onChange={e => update("confirmPassword", e.target.value)} />
-                  {errors.confirmPassword && <p style={{ fontSize: 11, color: "#e07070", marginTop: 5, fontWeight: 300 }}>{errors.confirmPassword}</p>}
+                  {errors.confirmPassword && <p style={{ fontSize: 13, color: "#e07070", marginTop: 5, fontWeight: 400 }}>{errors.confirmPassword}</p>}
                 </div>
               )}
 
@@ -272,7 +281,7 @@ export default function Auth() {
                   <div className={`checkbox-custom ${rememberMe ? "checked" : ""}`}>
                     {rememberMe && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#080810" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>}
                   </div>
-                  <span style={{ fontSize: 12, color: "rgba(232,224,208,0.45)", fontWeight: 300, cursor: "pointer" }}>Намайг сана</span>
+                  <span style={{ fontSize: 13, color: "rgba(247,243,234,0.45)", fontWeight: 400, cursor: "pointer" }}>Намайг сана</span>
                 </div>
               ) : (
                 <div>
@@ -280,22 +289,23 @@ export default function Auth() {
                     <div className={`checkbox-custom ${agreeTerms ? "checked" : ""}`} style={{ marginTop: 2 }}>
                       {agreeTerms && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#080810" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>}
                     </div>
-                    <span style={{ fontSize: 12, color: "rgba(232,224,208,0.45)", fontWeight: 300, cursor: "pointer", lineHeight: 1.6 }}>
+                    <span style={{ fontSize: 13, color: "rgba(247,243,234,0.45)", fontWeight: 400, cursor: "pointer", lineHeight: 1.6 }}>
                       Би зөвшөөрч байна <span style={{ color: "#c9a84c" }}>Үйлчилгээний нөхцөл</span> and <span style={{ color: "#c9a84c" }}>Нууцлалын бодлого</span>
                     </span>
                   </div>
-                  {errors.terms && <p style={{ fontSize: 11, color: "#e07070", marginTop: 5, fontWeight: 300 }}>{errors.terms}</p>}
+                  {errors.terms && <p style={{ fontSize: 13, color: "#e07070", marginTop: 5, fontWeight: 400 }}>{errors.terms}</p>}
                 </div>
               )}
             </div>
 
             {/* Submit button */}
             <div className="fade-up fade-up-4" style={{ marginTop: 24 }}>
+              {errors.form && <p style={{ fontSize: 13, color: "#e07070", marginBottom: 12, fontWeight: 400, textAlign: "center" }}>{errors.form}</p>}
               <button className="cta-btn" onClick={handleSubmit} style={{
                 width: "100%", padding: "14px",
                 background: loading ? "rgba(201,168,76,0.5)" : "linear-gradient(135deg, #c9a84c, #8a6020)",
                 color: "#080810", borderRadius: 6,
-                fontSize: 13, fontFamily: "'Montserrat'",
+                fontSize: 14, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif",
                 fontWeight: 500, letterSpacing: "0.12em",
                 textTransform: "uppercase",
                 boxShadow: "0 8px 24px rgba(201,168,76,0.25)",
@@ -311,9 +321,9 @@ export default function Auth() {
                 )}
               </button>
 
-              <p style={{ textAlign: "center", marginTop: 18, fontSize: 13, color: "rgba(232,224,208,0.35)", fontWeight: 300 }}>
+              <p style={{ textAlign: "center", marginTop: 18, fontSize: 14, color: "rgba(247,243,234,0.35)", fontWeight: 400 }}>
                 {mode === "login" ? "Бүртгэлгүй юу? " : "Аль хэдийн бүртгэлтэй юу? "}
-                <button className="toggle-link" onClick={() => switchMode(mode === "login" ? "register" : "login")} style={{ color: "#c9a84c", fontSize: 13, fontWeight: 400 }}>
+                <button className="toggle-link" onClick={() => switchMode(mode === "login" ? "register" : "login")} style={{ color: "#c9a84c", fontSize: 14, fontWeight: 400 }}>
                   {mode === "login" ? "Бүртгүүлэх" : "Нэвтрэх"}
                 </button>
               </p>

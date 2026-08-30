@@ -1,44 +1,21 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import useWindowSize from "./useWindowSize";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
-import { PLAYFAIR_MONTSERRAT_FONTS, baseCss } from "./sharedStyles";
-
-const USER = {
-  name: "Narantsetseg",
-  username: "@narantsetseg",
-  avatar: "N",
-  joined: "March 2025",
-  totalRead: 847,
-  chaptersRead: 1240,
-  bookmarks: 12,
-  level: "Gold Reader",
-};
-
-const BOOKMARKS = [
-  { id: 1, title: "The Remarried Empress", cover: "https://picsum.photos/seed/empress/300/420", genre: "Royal Romance", progress: 156, total: 156, lastRead: "Ch. 156", lastReadTime: "2 hours ago", status: "Ongoing", rating: 9.8 },
-  { id: 2, title: "My Husband Hides His Beauty", cover: "https://picsum.photos/seed/husband/300/420", genre: "Fantasy Romance", progress: 67, total: 89, lastRead: "Ch. 67", lastReadTime: "1 day ago", status: "Ongoing", rating: 9.5 },
-  { id: 3, title: "A Business Proposal", cover: "https://picsum.photos/seed/business/300/420", genre: "Modern Romance", progress: 128, total: 128, lastRead: "Ch. 128", lastReadTime: "3 days ago", status: "Completed", rating: 9.6 },
-  { id: 4, title: "The Villainess Reverses", cover: "https://picsum.photos/seed/villainess/300/420", genre: "Isekai Romance", progress: 44, total: 112, lastRead: "Ch. 44", lastReadTime: "1 week ago", status: "Ongoing", rating: 9.4 },
-  { id: 5, title: "I Became the Tyrant's Secretary", cover: "https://picsum.photos/seed/tyrant/300/420", genre: "Historical Romance", progress: 30, total: 67, lastRead: "Ch. 30", lastReadTime: "2 weeks ago", status: "Ongoing", rating: 9.2 },
-  { id: 6, title: "Beware of the Villainess", cover: "https://picsum.photos/seed/beware/300/420", genre: "Dark Romance", progress: 95, total: 95, lastRead: "Ch. 95", lastReadTime: "1 month ago", status: "Completed", rating: 9.3 },
-];
-
-const HISTORY = [
-  { id: 1, title: "The Remarried Empress", cover: "https://picsum.photos/seed/empress/300/420", chapter: "Ch. 156 — When Empires Fall", time: "2 hours ago" },
-  { id: 2, title: "My Husband Hides His Beauty", cover: "https://picsum.photos/seed/husband/300/420", chapter: "Ch. 67 — The Hidden Face", time: "1 day ago" },
-  { id: 3, title: "A Business Proposal", cover: "https://picsum.photos/seed/business/300/420", chapter: "Ch. 128 — Final Chapter", time: "3 days ago" },
-  { id: 4, title: "The Villainess Reverses", cover: "https://picsum.photos/seed/villainess/300/420", chapter: "Ch. 44 — A Dangerous Game", time: "1 week ago" },
-  { id: 5, title: "I Became the Tyrant's Secretary", cover: "https://picsum.photos/seed/tyrant/300/420", chapter: "Ch. 30 — Midnight Orders", time: "2 weeks ago" },
-];
+import { FONT_IMPORT, baseCss } from "./sharedStyles";
+import useAuth from "./lib/useAuth";
+import { getProfile, updateProfile, signOut } from "./lib/auth";
+import { getBookmarks, removeBookmark as removeBookmarkApi } from "./lib/bookmarks";
+import { getReadingHistory, clearReadingHistory } from "./lib/history";
+import { timeAgo } from "./lib/format";
 
 const css = `
-  ${PLAYFAIR_MONTSERRAT_FONTS}
+  ${FONT_IMPORT}
   ${baseCss}
 
   .tab-btn { cursor: pointer; border: none; transition: all 0.2s; }
-  .tab-btn:hover { color: #e8e0d0 !important; }
+  .tab-btn:hover { color: #f7f3ea !important; }
 
   .manga-card {
     cursor: pointer;
@@ -70,9 +47,9 @@ const css = `
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.1);
     border-radius: 6px; padding: 10px 14px;
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif;
     font-size: 13px; font-weight: 300;
-    color: #e8e0d0; outline: none; width: 100%;
+    color: #f7f3ea; outline: none; width: 100%;
     transition: border-color 0.2s;
   }
   .edit-input:focus { border-color: rgba(201,168,76,0.5); }
@@ -80,26 +57,82 @@ const css = `
 
 export default function Profile() {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState("bookmarks");
-  const [bookmarks, setBookmarks] = useState(BOOKMARKS);
-  const [userName, setUserName] = useState(USER.name);
+  const [profile, setProfile] = useState(null);
+  const [bookmarks, setBookmarks] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [userName, setUserName] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
   const [prefs, setPrefs] = useState({ notif: true, progress: true, autobook: false });
   const width = useWindowSize();
   const isMobile = width < 768;
 
-  const removeBookmark = (id, e) => {
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) { navigate("/auth"); return; }
+    setDataLoading(true);
+    Promise.all([getProfile(user.id), getBookmarks(user.id), getReadingHistory(user.id)])
+      .then(([p, b, h]) => {
+        setProfile(p);
+        setUserName(p.username || "");
+        setBookmarks(b);
+        setHistory(h);
+      })
+      .catch(() => {})
+      .finally(() => setDataLoading(false));
+  }, [user, authLoading, navigate]);
+
+  // Last-read chapter per series, derived from history, to show bookmark progress.
+  const lastReadBySeries = {};
+  history.forEach((h) => { lastReadBySeries[h.series.id] = h; });
+
+  const removeBookmark = (seriesId, e) => {
     e.stopPropagation();
-    setBookmarks(prev => prev.filter(b => b.id !== id));
+    setBookmarks(prev => prev.filter(b => b.id !== seriesId));
+    removeBookmarkApi(user.id, seriesId).catch(() => {});
+  };
+
+  const handleClearHistory = () => {
+    setHistory([]);
+    clearReadingHistory(user.id).catch(() => {});
+  };
+
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
+    try {
+      await updateProfile(user.id, { username: userName });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/");
   };
 
   const tabs = [
     { id: "bookmarks", label: "Хадгалсан", count: bookmarks.length },
-    { id: "history", label: "Түүх", count: HISTORY.length },
+    { id: "history", label: "Түүх", count: history.length },
     { id: "settings", label: "Тохиргоо", count: null },
   ];
 
+  if (authLoading || dataLoading || !profile) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#080810", color: "#f7f3ea", fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>
+        <style>{css}</style>
+        <Header />
+        <div style={{ textAlign: "center", padding: "120px 0" }}>
+          <p style={{ fontSize: 14, color: "rgba(247,243,234,0.35)", fontWeight: 400 }}>Ачааллаж байна...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ minHeight: "100vh", background: "#080810", color: "#e8e0d0", fontFamily: "'Montserrat', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#080810", color: "#f7f3ea", fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>
       <style>{css}</style>
       <Header />
 
@@ -121,29 +154,27 @@ export default function Profile() {
                 fontSize: isMobile ? 26 : 32, fontWeight: 700, color: "#080810",
                 border: "3px solid rgba(201,168,76,0.4)",
                 boxShadow: "0 0 28px rgba(201,168,76,0.2)",
-              }}>{USER.avatar}</div>
+              }}>{(profile.username || "?")[0].toUpperCase()}</div>
               <div style={{ position: "absolute", bottom: 2, right: 2, width: 16, height: 16, borderRadius: "50%", background: "#6dbb6d", border: "2px solid #080810" }} />
             </div>
 
             {/* Info */}
             <div style={{ flex: 1, paddingBottom: isMobile ? 0 : 4 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4, flexWrap: "wrap" }}>
-                <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: isMobile ? 20 : 26, fontWeight: 700, color: "#e8e0d0" }}>{userName}</h1>
-                <span style={{ fontSize: 9, padding: "3px 10px", borderRadius: 12, background: "linear-gradient(135deg, rgba(201,168,76,0.2), rgba(201,168,76,0.1))", border: "1px solid rgba(201,168,76,0.3)", color: "#c9a84c", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 500 }}>✦ {USER.level}</span>
+                <h1 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: isMobile ? 21 : 26, fontWeight: 700, color: "#f7f3ea" }}>{profile.username}</h1>
               </div>
-              <p style={{ fontSize: 12, color: "rgba(232,224,208,0.35)", fontWeight: 300, marginBottom: 0 }}>{USER.username} · Joined {USER.joined}</p>
+              <p style={{ fontSize: 13, color: "rgba(247,243,234,0.35)", fontWeight: 400, marginBottom: 0 }}>{user.email} · Joined {new Date(profile.created_at).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</p>
             </div>
 
             {/* Stats */}
             <div style={{ display: "flex", gap: isMobile ? 20 : 32, paddingBottom: isMobile ? 0 : 4 }}>
               {[
-                { label: "Уншсан цуврал", value: USER.totalRead },
-                { label: "Бүлгүүд", value: USER.chaptersRead.toLocaleString() },
+                { label: "Уншсан цуврал", value: history.length },
                 { label: "Хадгалсан", value: bookmarks.length },
               ].map(stat => (
                 <div key={stat.label} style={{ textAlign: "center" }}>
-                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: isMobile ? 18 : 22, fontWeight: 700, color: "#c9a84c" }}>{stat.value}</div>
-                  <div style={{ fontSize: isMobile ? 9 : 10, color: "rgba(232,224,208,0.35)", fontWeight: 300, letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 2 }}>{stat.label}</div>
+                  <div style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: isMobile ? 19 : 23, fontWeight: 700, color: "#c9a84c" }}>{stat.value}</div>
+                  <div style={{ fontSize: isMobile ? 11 : 12, color: "rgba(247,243,234,0.35)", fontWeight: 400, letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 2 }}>{stat.label}</div>
                 </div>
               ))}
             </div>
@@ -153,16 +184,16 @@ export default function Profile() {
           <div style={{ display: "flex", gap: 0, overflowX: "auto" }}>
             {tabs.map(tab => (
               <button key={tab.id} className="tab-btn" onClick={() => setActiveTab(tab.id)} style={{
-                padding: isMobile ? "12px 14px" : "12px 22px", fontSize: 12,
-                fontFamily: "'Montserrat'", fontWeight: activeTab === tab.id ? 500 : 300,
-                color: activeTab === tab.id ? "#c9a84c" : "rgba(232,224,208,0.4)",
+                padding: isMobile ? "12px 14px" : "12px 22px", fontSize: 13,
+                fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: activeTab === tab.id ? 500 : 300,
+                color: activeTab === tab.id ? "#c9a84c" : "rgba(247,243,234,0.4)",
                 background: "none", letterSpacing: "0.1em", textTransform: "uppercase",
                 borderBottom: activeTab === tab.id ? "2px solid #c9a84c" : "2px solid transparent",
                 marginBottom: -1, display: "flex", alignItems: "center", gap: 7, whiteSpace: "nowrap",
               }}>
                 {tab.label}
                 {tab.count !== null && (
-                  <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 10, background: activeTab === tab.id ? "rgba(201,168,76,0.15)" : "rgba(255,255,255,0.06)", color: activeTab === tab.id ? "#c9a84c" : "rgba(232,224,208,0.3)" }}>{tab.count}</span>
+                  <span style={{ fontSize: 12, padding: "1px 7px", borderRadius: 10, background: activeTab === tab.id ? "rgba(201,168,76,0.15)" : "rgba(255,255,255,0.06)", color: activeTab === tab.id ? "#c9a84c" : "rgba(247,243,234,0.3)" }}>{tab.count}</span>
                 )}
               </button>
             ))}
@@ -179,40 +210,45 @@ export default function Profile() {
             {bookmarks.length === 0 ? (
               <div style={{ textAlign: "center", padding: "80px 0" }}>
                 <div style={{ fontSize: 40, marginBottom: 16 }}>✦</div>
-                <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, color: "rgba(232,224,208,0.4)", marginBottom: 10 }}>Хадгалсан зүйл байхгүй</h3>
-                <p style={{ fontSize: 13, color: "rgba(232,224,208,0.25)", fontWeight: 300, marginBottom: 24 }}>Уншиж эхэлж дуртайгаа хадгал</p>
-                <button className="cta-btn" onClick={() => navigate("/browse")} style={{ background: "linear-gradient(135deg, #c9a84c, #8a6020)", color: "#080810", padding: "11px 24px", borderRadius: 6, fontSize: 12, fontFamily: "'Montserrat'", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase" }}>Цувралуудыг үзэх</button>
+                <h3 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 21, color: "rgba(247,243,234,0.4)", marginBottom: 10 }}>Хадгалсан зүйл байхгүй</h3>
+                <p style={{ fontSize: 14, color: "rgba(247,243,234,0.25)", fontWeight: 400, marginBottom: 24 }}>Уншиж эхэлж дуртайгаа хадгал</p>
+                <button className="cta-btn" onClick={() => navigate("/browse")} style={{ background: "linear-gradient(135deg, #c9a84c, #8a6020)", color: "#080810", padding: "11px 24px", borderRadius: 6, fontSize: 13, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase" }}>Цувралуудыг үзэх</button>
               </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: isMobile ? 12 : 20 }}>
-                {bookmarks.map((b, i) => (
+                {bookmarks.map((b, i) => {
+                  const lastRead = lastReadBySeries[b.id];
+                  const pct = lastRead && b.chapterCount ? Math.round((lastRead.chapter.chapter_number / b.chapterCount) * 100) : 0;
+                  return (
                   <div key={b.id} className="manga-card fade-up" style={{ animationDelay: `${i * 0.05}s`, background: "rgba(255,255,255,0.03)", borderRadius: 8, overflow: "hidden", border: "1px solid rgba(255,255,255,0.07)", boxShadow: "0 4px 20px rgba(0,0,0,0.4)", position: "relative" }}
                     onClick={() => navigate(`/series/${b.id}`)}>
 
                     {/* Cover */}
                     <div style={{ position: "relative", paddingBottom: "145%", overflow: "hidden" }}>
-                      <img className="card-img" src={b.cover} alt={b.title} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                      <img className="card-img" src={b.cover_url} alt={b.title} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
                       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(8,8,16,0.92) 0%, rgba(8,8,16,0.2) 55%, transparent 75%)" }} />
 
                       {/* Remove button */}
                       <button className="remove-btn" onClick={(e) => removeBookmark(b.id, e)} style={{
                         position: "absolute", top: 8, right: 8,
                         background: "rgba(8,8,16,0.7)", backdropFilter: "blur(8px)",
-                        color: "rgba(232,224,208,0.5)", borderRadius: 4,
-                        padding: "4px 7px", fontSize: 11,
+                        color: "rgba(247,243,234,0.5)", borderRadius: 4,
+                        padding: "4px 7px", fontSize: 13,
                         border: "1px solid rgba(255,255,255,0.1)",
                       }}>✕</button>
 
                       {/* Progress bar */}
-                      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
-                        <div style={{ height: 3, background: "rgba(255,255,255,0.1)" }}>
-                          <div style={{ height: "100%", width: `${Math.round((b.progress / b.total) * 100)}%`, background: "linear-gradient(90deg, #c9a84c, #f0d080)" }} />
+                      {lastRead && (
+                        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
+                          <div style={{ height: 3, background: "rgba(255,255,255,0.1)" }}>
+                            <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg, #c9a84c, #f0d080)" }} />
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* Continue button */}
                       <div className="continue-btn" style={{ position: "absolute", bottom: 12, left: 0, right: 0, padding: "0 10px", opacity: 0, transition: "opacity 0.25s" }}>
-                        <div style={{ background: "linear-gradient(135deg, #c9a84c, #8a6020)", color: "#080810", padding: "8px", borderRadius: 3, fontSize: 10, fontFamily: "'Montserrat'", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", textAlign: "center" }}>
+                        <div style={{ background: "linear-gradient(135deg, #c9a84c, #8a6020)", color: "#080810", padding: "8px", borderRadius: 3, fontSize: 12, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", textAlign: "center" }}>
                           Continue →
                         </div>
                       </div>
@@ -220,15 +256,16 @@ export default function Profile() {
 
                     {/* Info */}
                     <div style={{ padding: "12px 12px 14px" }}>
-                      <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, fontWeight: 500, color: "#e8e0d0", marginBottom: 5, lineHeight: 1.3 }}>{b.title}</h3>
+                      <h3 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 14, fontWeight: 700, color: "#f7f3ea", marginBottom: 5, lineHeight: 1.3 }}>{b.title}</h3>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                        <span style={{ fontSize: 10, color: "#c9a84c", fontWeight: 300 }}>{b.lastRead}</span>
-                        <span style={{ fontSize: 10, color: "rgba(232,224,208,0.25)", fontWeight: 300 }}>{Math.round((b.progress / b.total) * 100)}%</span>
+                        <span style={{ fontSize: 12, color: "#c9a84c", fontWeight: 400 }}>{lastRead ? `Ch. ${lastRead.chapter.chapter_number}` : "Эхлээгүй"}</span>
+                        {lastRead && <span style={{ fontSize: 12, color: "rgba(247,243,234,0.25)", fontWeight: 400 }}>{pct}%</span>}
                       </div>
-                      <div style={{ fontSize: 10, color: "rgba(232,224,208,0.25)", fontWeight: 300 }}>{b.lastReadTime}</div>
+                      {lastRead && <div style={{ fontSize: 12, color: "rgba(247,243,234,0.25)", fontWeight: 400 }}>{timeAgo(lastRead.last_read_at)}</div>}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -238,27 +275,36 @@ export default function Profile() {
         {activeTab === "history" && (
           <div className="fade-up">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <p style={{ fontSize: 12, color: "rgba(232,224,208,0.3)", fontWeight: 300 }}>{HISTORY.length} саяхан уншсан бүлэг</p>
-              <button className="ghost-btn" style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(232,224,208,0.35)", padding: "6px 14px", borderRadius: 6, fontSize: 11, fontFamily: "'Montserrat'", letterSpacing: "0.08em", textTransform: "uppercase" }}>Түүхийг цэвэрлэх</button>
+              <p style={{ fontSize: 13, color: "rgba(247,243,234,0.3)", fontWeight: 400 }}>{history.length} саяхан уншсан бүлэг</p>
+              {history.length > 0 && (
+                <button onClick={handleClearHistory} className="ghost-btn" style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(247,243,234,0.35)", padding: "6px 14px", borderRadius: 6, fontSize: 13, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", letterSpacing: "0.08em", textTransform: "uppercase" }}>Түүхийг цэвэрлэх</button>
+              )}
             </div>
+            {history.length === 0 && (
+              <div style={{ textAlign: "center", padding: "80px 0" }}>
+                <div style={{ fontSize: 40, marginBottom: 16 }}>✦</div>
+                <h3 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 21, color: "rgba(247,243,234,0.4)", marginBottom: 10 }}>Уншсан түүх байхгүй</h3>
+                <p style={{ fontSize: 14, color: "rgba(247,243,234,0.25)", fontWeight: 400 }}>Бүлэг уншихад энд харагдана</p>
+              </div>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-              {HISTORY.map((h, i) => (
-                <div key={i} className="history-row fade-up" style={{ animationDelay: `${i * 0.04}s`, display: "flex", alignItems: "center", gap: 16, padding: "14px 16px", background: "rgba(255,255,255,0.02)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.05)" }}
-                  onClick={() => navigate(`/read/${h.title.toLowerCase().replace(/\s/g, "-")}/1`)}>
+              {history.map((h, i) => (
+                <div key={h.id} className="history-row fade-up" style={{ animationDelay: `${i * 0.04}s`, display: "flex", alignItems: "center", gap: 16, padding: "14px 16px", background: "rgba(255,255,255,0.02)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.05)" }}
+                  onClick={() => navigate(`/read/${h.series.id}/${h.chapter.chapter_number}`)}>
 
-                  <img src={h.cover} alt="" style={{ width: 40, height: 56, borderRadius: 4, objectFit: "cover", flexShrink: 0, border: "1px solid rgba(201,168,76,0.1)" }} />
+                  <img src={h.series.cover_url} alt="" style={{ width: 40, height: 56, borderRadius: 4, objectFit: "cover", flexShrink: 0, border: "1px solid rgba(201,168,76,0.1)" }} />
 
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 14, color: "#e8e0d0", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.title}</div>
-                    <div style={{ fontSize: 12, color: "#c9a84c", fontWeight: 300 }}>{h.chapter}</div>
+                    <div style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 15, color: "#f7f3ea", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.series.title}</div>
+                    <div style={{ fontSize: 13, color: "#c9a84c", fontWeight: 400 }}>Ch. {h.chapter.chapter_number} — {h.chapter.title}</div>
                   </div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
-                    <span style={{ fontSize: 11, color: "rgba(232,224,208,0.25)", fontWeight: 300 }}>{h.time}</span>
-                    <button className="cta-btn" onClick={e => { e.stopPropagation(); navigate(`/read/series/1`); }} style={{
+                    <span style={{ fontSize: 13, color: "rgba(247,243,234,0.25)", fontWeight: 400 }}>{timeAgo(h.last_read_at)}</span>
+                    <button className="cta-btn" onClick={e => { e.stopPropagation(); navigate(`/read/${h.series.id}/${h.chapter.chapter_number}`); }} style={{
                       background: "rgba(201,168,76,0.1)", border: "1px solid rgba(201,168,76,0.2)",
                       color: "#c9a84c", padding: "6px 14px", borderRadius: 4,
-                      fontSize: 11, fontFamily: "'Montserrat'", fontWeight: 400,
+                      fontSize: 13, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 400,
                       letterSpacing: "0.08em", textTransform: "uppercase",
                     }}>Үргэлжлүүлэх</button>
                   </div>
@@ -275,20 +321,22 @@ export default function Profile() {
 
               {/* Profile section */}
               <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "24px" }}>
-                <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 17, fontWeight: 700, marginBottom: 18, paddingBottom: 14, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>Профайл</h3>
+                <h3 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 18, paddingBottom: 14, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>Профайл</h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  {[["Нэр", userName, setUserName], ["Username", USER.username, () => {}], ["Email", "narantsetseg@gmail.com", () => {}]].map(([label, val, setter]) => (
-                    <div key={label}>
-                      <label style={{ fontSize: 11, color: "rgba(232,224,208,0.4)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>{label}</label>
-                      <input className="edit-input" defaultValue={val} onChange={e => setter(e.target.value)} />
-                    </div>
-                  ))}
+                  <div>
+                    <label style={{ fontSize: 13, color: "rgba(247,243,234,0.4)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>Нэр</label>
+                    <input className="edit-input" value={userName} onChange={e => setUserName(e.target.value)} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 13, color: "rgba(247,243,234,0.4)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>Email</label>
+                    <input className="edit-input" defaultValue={user.email} disabled style={{ opacity: 0.5, cursor: "not-allowed" }} />
+                  </div>
                 </div>
               </div>
 
               {/* Preferences */}
               <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "24px" }}>
-                <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 17, fontWeight: 700, marginBottom: 18, paddingBottom: 14, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>Тохиргоо</h3>
+                <h3 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 18, paddingBottom: 14, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>Тохиргоо</h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   {[
                     ["Шинэ бүлгийн и-мэйл мэдэгдэл", "notif"],
@@ -296,7 +344,7 @@ export default function Profile() {
                     ["Уншиж эхлэхэд автоматаар хадгалах", "autobook"],
                   ].map(([label, key]) => (
                     <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: 13, color: "rgba(232,224,208,0.6)", fontWeight: 300 }}>{label}</span>
+                      <span style={{ fontSize: 14, color: "rgba(247,243,234,0.6)", fontWeight: 400 }}>{label}</span>
                       <div onClick={() => setPrefs(p => ({ ...p, [key]: !p[key] }))} style={{ width: 38, height: 22, borderRadius: 11, background: prefs[key] ? "linear-gradient(135deg, #c9a84c, #8a6020)" : "rgba(255,255,255,0.1)", position: "relative", cursor: "pointer", transition: "background 0.2s", flexShrink: 0 }}>
                         <div style={{ position: "absolute", top: 3, left: prefs[key] ? 19 : 3, width: 16, height: 16, borderRadius: "50%", background: "white", transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.3)" }} />
                       </div>
@@ -307,8 +355,8 @@ export default function Profile() {
 
               {/* Save + Danger zone */}
               <div style={{ display: "flex", gap: 10 }}>
-                <button className="cta-btn" style={{ flex: 1, background: "linear-gradient(135deg, #c9a84c, #8a6020)", color: "#080810", padding: "12px", borderRadius: 6, fontSize: 12, fontFamily: "'Montserrat'", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", boxShadow: "0 6px 20px rgba(201,168,76,0.25)" }}>Хадгалах ✦</button>
-                <button className="ghost-btn" style={{ background: "rgba(200,60,60,0.08)", border: "1px solid rgba(200,60,60,0.15)", color: "rgba(200,60,60,0.6)", padding: "12px 18px", borderRadius: 6, fontSize: 12, fontFamily: "'Montserrat'", letterSpacing: "0.08em", textTransform: "uppercase" }}>Гарах</button>
+                <button className="cta-btn" onClick={handleSaveProfile} disabled={savingProfile} style={{ flex: 1, background: "linear-gradient(135deg, #c9a84c, #8a6020)", color: "#080810", padding: "12px", borderRadius: 6, fontSize: 13, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", boxShadow: "0 6px 20px rgba(201,168,76,0.25)", opacity: savingProfile ? 0.6 : 1 }}>{savingProfile ? "Хадгалж байна..." : "Хадгалах ✦"}</button>
+                <button onClick={handleLogout} style={{ background: "linear-gradient(135deg, #e04848, #a82020)", border: "none", color: "#fff", padding: "12px 18px", borderRadius: 6, fontSize: 13, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer", boxShadow: "0 6px 20px rgba(224,72,72,0.3)" }}>Гарах</button>
               </div>
             </div>
           </div>
