@@ -4,9 +4,9 @@ import useWindowSize from "./useWindowSize";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import { MAX_W, FONT_IMPORT, baseCss } from "./sharedStyles";
-import { getFeaturedSeries, getRecentChapters, getTrendingSeries } from "./lib/series";
+import { getFeaturedSeries, getRecentChapters, getTrendingSeries, getSiteStats, getAllSeries } from "./lib/series";
 import { getGenres } from "./lib/genres";
-import { timeAgo, isRecent } from "./lib/format";
+import { timeAgo, isRecent, formatCount } from "./lib/format";
 
 const TREND_PERIODS = [["day", "Өнөөдөр"], ["week", "7 хоног"], ["month", "1 сар"]];
 
@@ -43,11 +43,15 @@ export default function Home() {
   const [trending, setTrending] = useState([]);
   const [trendingPeriod, setTrendingPeriod] = useState("week");
   const [trendingLoading, setTrendingLoading] = useState(true);
+  const [siteStats, setSiteStats] = useState({ seriesCount: 0, chapterCount: 0, todayCount: 0 });
+  const [newSeriesList, setNewSeriesList] = useState([]);
 
   useEffect(() => {
     getFeaturedSeries().then(setFeaturedSeries).catch(() => setFeaturedSeries([]));
     getRecentChapters().then(setNewChapters).catch(() => setNewChapters([]));
     getGenres().then(gs => setGenres(["All", ...gs.map(g => g.name)])).catch(() => {});
+    getSiteStats().then(setSiteStats).catch(() => {});
+    getAllSeries({ sortBy: "newest" }).then(list => setNewSeriesList(list.slice(0, 5))).catch(() => setNewSeriesList([]));
   }, []);
 
   useEffect(() => {
@@ -110,7 +114,7 @@ export default function Home() {
             </div>
 
             <div className="fade-up fade-up-4" style={{ display: "flex", gap: 36, marginTop: 40 }}>
-              {[["48", "Цуврал"], ["3.2K", "Бүлэг"], ["12K+", "Уншигч"]].map(([val, label]) => (
+              {[[formatCount(siteStats.seriesCount), "Цуврал"], [formatCount(siteStats.chapterCount), "Бүлэг"], [formatCount(siteStats.todayCount), "Өнөөдөр нэмэгдсэн"]].map(([val, label]) => (
                 <div key={label}>
                   <div style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 24, fontWeight: 700, color: "#c9a84c" }}>{val}</div>
                   <div style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 12, fontWeight: 400, color: "rgba(247,243,234,0.4)", letterSpacing: "0.12em", textTransform: "uppercase" }}>{label}</div>
@@ -293,24 +297,19 @@ export default function Home() {
               </div>
             </div>
 
-            <div style={{ background: "linear-gradient(135deg, rgba(201,168,76,0.08), rgba(100,60,160,0.08))", borderRadius: 8, padding: "20px", border: "1px solid rgba(201,168,76,0.15)" }}>
-              <h3 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 16, fontWeight: 700, color: "#f7f3ea", marginBottom: 14 }}>Нийт Сан</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                {[["48", "Цуврал"], ["3.2K", "Бүлэг"], ["12K", "Уншигч"], ["Өдөр бүр", "Шинэчлэл"]].map(([val, label]) => (
-                  <div key={label} style={{ background: "rgba(8,8,16,0.4)", borderRadius: 8, padding: "10px", textAlign: "center", border: "1px solid rgba(201,168,76,0.1)" }}>
-                    <div style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 19, fontWeight: 700, color: "#c9a84c" }}>{val}</div>
-                    <div style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 12, color: "rgba(247,243,234,0.4)", fontWeight: 400 }}>{label}</div>
+            <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "20px", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, paddingBottom: 12, borderBottom: "1px solid rgba(201,168,76,0.12)" }}>
+                <h3 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 16, fontWeight: 700, color: "#f7f3ea" }}>Шинэ Цувралууд</h3>
+                <span onClick={() => navigate("/browse")} style={{ fontSize: 12, color: "#c9a84c", fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>Бүгд →</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {newSeriesList.map((s) => (
+                  <div key={s.id} className="chapter-row" onClick={() => navigate(`/series/${s.id}`)} style={{ display: "flex", gap: 12, alignItems: "center", padding: "8px 6px" }}>
+                    <img src={s.cover_url} alt="" style={{ width: 38, height: 52, borderRadius: 4, objectFit: "cover", flexShrink: 0, border: "1px solid rgba(201,168,76,0.1)" }} />
+                    <div style={{ flex: 1, minWidth: 0, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 13, fontWeight: 700, color: "#f7f3ea", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
                   </div>
                 ))}
               </div>
-            </div>
-
-            <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "20px", border: "1px solid rgba(255,255,255,0.07)" }}>
-              <div style={{ fontSize: 23, marginBottom: 8, textAlign: "center" }}>✦</div>
-              <h3 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 16, fontWeight: 700, color: "#f7f3ea", textAlign: "center", marginBottom: 8 }}>Бүлгийг бүү алдаарай</h3>
-              <p style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 14, color: "rgba(247,243,234,0.5)", textAlign: "center", marginBottom: 14, lineHeight: 1.5, fontWeight: 400 }}>Дуртай цувралынхаа шинэ бүлэг гарахад мэдэгдэл авах</p>
-              <input placeholder="И-мэйл хаяг" style={{ width: "100%", padding: "9px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(201,168,76,0.2)", borderRadius: 4, outline: "none", fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 14, color: "#f7f3ea", marginBottom: 8, fontWeight: 400 }} />
-              <button onClick={() => navigate("/auth")} style={{ width: "100%", background: "linear-gradient(135deg, #c9a84c, #8a6020)", color: "#080810", padding: "9px", borderRadius: 4, fontSize: 13, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", border: "none", cursor: "pointer" }}>Бүртгүүлэх ✦</button>
             </div>
           </div>
         )}

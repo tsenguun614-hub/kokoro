@@ -38,6 +38,16 @@ export function logSeriesView(seriesId) {
   supabase.from("series_views").insert({ series_id: seriesId }).then(() => {});
 }
 
+export async function getSiteStats() {
+  const { data, error } = await supabase.rpc("get_site_stats").single();
+  if (error) throw error;
+  return {
+    seriesCount: data.series_count,
+    chapterCount: data.chapter_count,
+    todayCount: data.today_count,
+  };
+}
+
 export async function getRecentChapters(limit = 5) {
   const { data, error } = await supabase
     .from("chapters")

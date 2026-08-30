@@ -306,3 +306,18 @@ create policy "Admins can manage series genres"
 
 create index if not exists idx_series_genres_series_id on series_genres(series_id);
 create index if not exists idx_series_genres_genre_id on series_genres(genre_id);
+
+-- ── SITE STATS ────────────────────────────────────────────
+-- Total series/chapter counts and today's newly-added chapter count,
+-- for the Home page's hero stats and "Нийт Сан" widget.
+create or replace function get_site_stats()
+returns table (series_count bigint, chapter_count bigint, today_count bigint)
+language sql stable security definer set search_path = public
+as $$
+  select
+    (select count(*) from series) as series_count,
+    (select count(*) from chapters) as chapter_count,
+    (select count(*) from chapters where created_at >= date_trunc('day', now())) as today_count;
+$$;
+
+grant execute on function get_site_stats() to anon, authenticated;

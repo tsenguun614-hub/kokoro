@@ -21,6 +21,13 @@ export function isRecent(dateString, withinDays = 7) {
   return days <= withinDays;
 }
 
+// Compact number display for stat widgets, e.g. 12400 -> "12.4K".
+export function formatCount(n) {
+  if (n === null || n === undefined) return "0";
+  if (n < 1000) return String(n);
+  return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K`;
+}
+
 // Compact genre display for cards. Accepts either [{id,name}] or [name, ...].
 export function formatGenres(genres, max = 2) {
   if (!genres || genres.length === 0) return "";
