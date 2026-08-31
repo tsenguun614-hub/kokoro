@@ -415,6 +415,7 @@ export default function Reader() {
       {/* ── MAIN READER AREA ── */}
       <div ref={scrollRef} style={{
         flex: 1, overflowY: "auto", overflowX: "hidden",
+        WebkitOverflowScrolling: "touch",
         paddingTop: 58, background: readerBg,
         transition: "background 0.3s",
       }} onClick={handleReaderTap}>

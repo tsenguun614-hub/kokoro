@@ -17,6 +17,29 @@ function sanitizeFilename(name) {
   return name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
 }
 
+// Manga pages are routinely uploaded as raw, multi-megabyte scans. Nobody's
+// screen needs more than ~1400px of width to read them, and JPEG at 85%
+// quality is visually lossless for line art/flat color at that size while
+// cutting file size by 90%+ — the difference between a chapter that opens
+// instantly and one that takes several seconds per page on mobile data.
+async function compressImage(file, maxWidth = 1400, quality = 0.85) {
+  if (!file.type.startsWith("image/")) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, maxWidth / bitmap.width);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.\w+$/, ".jpg"), { type: "image/jpeg" });
+  } catch {
+    return file; // if compression fails for any reason, upload the original rather than blocking
+  }
+}
+
 export async function uploadFile(file, path) {
   const { uploadUrl, publicUrl } = await callGateway({ action: "upload", path });
   const res = await fetch(uploadUrl, { method: "PUT", body: file });
@@ -25,17 +48,18 @@ export async function uploadFile(file, path) {
 }
 
 export async function uploadCoverImage(file) {
-  const path = `covers/${Date.now()}-${sanitizeFilename(file.name)}`;
-  return uploadFile(file, path);
+  const compressed = await compressImage(file, 800, 0.85);
+  const path = `covers/${Date.now()}-${sanitizeFilename(compressed.name)}`;
+  return uploadFile(compressed, path);
 }
 
 // Uploads page images in order and returns their public URLs in the same order.
 export async function uploadChapterPages(files, seriesId, chapterNumber, onProgress) {
   const urls = [];
   for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    const path = `chapters/${seriesId}/${chapterNumber}/${String(i + 1).padStart(3, "0")}-${sanitizeFilename(file.name)}`;
-    const url = await uploadFile(file, path);
+    const compressed = await compressImage(files[i]);
+    const path = `chapters/${seriesId}/${chapterNumber}/${String(i + 1).padStart(3, "0")}-${sanitizeFilename(compressed.name)}`;
+    const url = await uploadFile(compressed, path);
     urls.push(url);
     if (onProgress) onProgress(i + 1, files.length);
   }
