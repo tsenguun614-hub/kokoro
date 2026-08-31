@@ -4,8 +4,8 @@ import { baseCss, FONT_IMPORT } from "./sharedStyles";
 import useWindowSize from "./useWindowSize";
 import useAuth from "./lib/useAuth";
 import { getProfile, signOut } from "./lib/auth";
-import { getAllSeries, createSeries, updateSeriesRecord, setSeriesGenres, createChapterWithPages, deleteSeries as deleteSeriesApi, deleteChapter as deleteChapterApi, getChaptersForSeries } from "./lib/series";
-import { uploadCoverImage, uploadChapterPages, deleteCoverIfOwned, deleteFolder } from "./lib/storage";
+import { getAllSeries, createSeries, updateSeriesRecord, setSeriesGenres, createChapterWithPages, deleteSeries as deleteSeriesApi, deleteChapter as deleteChapterApi, getChaptersForSeries, getAllImageUrls } from "./lib/series";
+import { uploadCoverImage, uploadChapterPages, deleteCoverIfOwned, deleteFolder, compressImage, uploadFile, isOwnStorageUrl, pathFromPublicUrl } from "./lib/storage";
 import { getGenres, createGenre, deleteGenre as deleteGenreApi } from "./lib/genres";
 import { timeAgo, formatGenres } from "./lib/format";
 
@@ -122,6 +122,7 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState("series"); // series | chapter
   const [notification, setNotification] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [recompress, setRecompress] = useState({ running: false, total: 0, done: 0, failed: 0, savedBytes: 0, origBytes: 0 });
 
   // New series form
   const [newSeries, setNewSeries] = useState({ title: "", genreIds: [], status: "Ongoing", rating: "", description: "", author: "", artist: "", coverUrl: "" });
@@ -371,6 +372,52 @@ export default function Admin() {
     } finally {
       setSubmitting(false);
       setUploadProgress(null);
+    }
+  };
+
+  // One-time utility: re-downloads every existing page/cover image, compresses
+  // it the same way new uploads are, and overwrites it at its exact same URL —
+  // no database changes needed since the path never changes.
+  const handleRecompressAll = async () => {
+    if (recompress.running) return;
+    if (!window.confirm("This downloads and re-compresses every image you've uploaded so far, overwriting the originals in place. It can take a while and the original files can't be recovered afterward. Continue?")) return;
+
+    setRecompress({ running: true, total: 0, done: 0, failed: 0, savedBytes: 0, origBytes: 0 });
+    try {
+      const allUrls = await getAllImageUrls();
+      const urls = allUrls.filter(isOwnStorageUrl);
+      setRecompress((r) => ({ ...r, total: urls.length }));
+
+      let index = 0;
+      const worker = async () => {
+        while (index < urls.length) {
+          const url = urls[index++];
+          try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`fetch failed (${res.status})`);
+            const blob = await res.blob();
+            const origSize = blob.size;
+            const path = pathFromPublicUrl(url);
+            const file = new File([blob], path.split("/").pop(), { type: blob.type || "image/png" });
+            const isCover = path.startsWith("covers/");
+            const compressed = await compressImage(file, isCover ? 800 : 1400, 0.85);
+            if (compressed.size < origSize) {
+              await uploadFile(compressed, path);
+              setRecompress((r) => ({ ...r, done: r.done + 1, savedBytes: r.savedBytes + (origSize - compressed.size), origBytes: r.origBytes + origSize }));
+            } else {
+              setRecompress((r) => ({ ...r, done: r.done + 1, origBytes: r.origBytes + origSize }));
+            }
+          } catch {
+            setRecompress((r) => ({ ...r, done: r.done + 1, failed: r.failed + 1 }));
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: 4 }, worker));
+      showNotif("Recompression complete", "success");
+    } catch (err) {
+      showNotif(err.message, "error");
+    } finally {
+      setRecompress((r) => ({ ...r, running: false }));
     }
   };
 
@@ -888,6 +935,44 @@ export default function Admin() {
                 </div>
               ))}
               <button className="cta-btn" style={{ background: "linear-gradient(135deg, #c9a84c, #8a6020)", color: "#080810", padding: "12px 24px", borderRadius: 6, fontSize: 13, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", alignSelf: "flex-start", marginTop: 8, boxShadow: "0 6px 20px rgba(201,168,76,0.25)" }}>Save Settings ✦</button>
+            </div>
+
+            <div style={{ marginTop: 40, maxWidth: 520, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "24px" }}>
+              <h3 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Recompress Existing Images</h3>
+              <p style={{ fontSize: 13, color: "rgba(247,243,234,0.45)", lineHeight: 1.6, marginBottom: 16 }}>
+                New uploads are already compressed automatically. This is a one-time tool for images uploaded before that — it re-downloads, compresses, and overwrites every existing cover and page image at its current URL. No chapters, pages, or ordering change. This can take a while for a large library, and the original files can't be recovered afterward.
+              </p>
+
+              {recompress.total > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ height: 6, background: "rgba(255,255,255,0.08)", borderRadius: 3, overflow: "hidden", marginBottom: 8 }}>
+                    <div style={{ height: "100%", width: `${Math.round((recompress.done / recompress.total) * 100)}%`, background: "linear-gradient(90deg, #c9a84c, #f0d080)", transition: "width 0.2s" }} />
+                  </div>
+                  <div style={{ fontSize: 13, color: "rgba(247,243,234,0.5)" }}>
+                    {recompress.done} / {recompress.total} processed
+                    {recompress.failed > 0 && <span style={{ color: "#e07070" }}> · {recompress.failed} failed</span>}
+                    {recompress.origBytes > 0 && (
+                      <> · {(recompress.savedBytes / recompress.origBytes * 100).toFixed(0)}% smaller so far</>
+                    )}
+                    {!recompress.running && recompress.done === recompress.total && (
+                      <> · saved {(recompress.savedBytes / 1024 / 1024).toFixed(0)}MB total</>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <button
+                className="ghost-btn"
+                onClick={handleRecompressAll}
+                disabled={recompress.running}
+                style={{
+                  background: "rgba(201,168,76,0.08)", border: "1px solid rgba(201,168,76,0.2)", color: "#c9a84c",
+                  padding: "11px 22px", borderRadius: 6, fontSize: 13,
+                  fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500,
+                  letterSpacing: "0.1em", textTransform: "uppercase",
+                  cursor: recompress.running ? "default" : "pointer", opacity: recompress.running ? 0.6 : 1,
+                }}
+              >{recompress.running ? "Running..." : "Recompress All Images"}</button>
             </div>
           </div>
         )}

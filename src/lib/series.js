@@ -38,6 +38,31 @@ export function logSeriesView(seriesId) {
   supabase.from("series_views").insert({ series_id: seriesId }).then(() => {});
 }
 
+// Every page image URL plus every series cover URL, for the one-time admin
+// batch-recompress tool. chapter_pages can exceed PostgREST's 1000-row
+// default page size, so this pages through in chunks of 1000.
+export async function getAllImageUrls() {
+  const pages = [];
+  let from = 0;
+  const pageSize = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from("chapter_pages")
+      .select("image_url")
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    pages.push(...data.map((r) => r.image_url));
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+
+  const { data: seriesRows, error: seriesErr } = await supabase.from("series").select("cover_url");
+  if (seriesErr) throw seriesErr;
+  const covers = seriesRows.map((r) => r.cover_url).filter(Boolean);
+
+  return [...pages, ...covers];
+}
+
 export async function getSiteStats() {
   const { data, error } = await supabase.rpc("get_site_stats").single();
   if (error) throw error;

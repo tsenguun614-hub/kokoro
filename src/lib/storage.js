@@ -22,7 +22,7 @@ function sanitizeFilename(name) {
 // quality is visually lossless for line art/flat color at that size while
 // cutting file size by 90%+ — the difference between a chapter that opens
 // instantly and one that takes several seconds per page on mobile data.
-async function compressImage(file, maxWidth = 1400, quality = 0.85) {
+export async function compressImage(file, maxWidth = 1400, quality = 0.85) {
   if (!file.type.startsWith("image/")) return file;
   try {
     const bitmap = await createImageBitmap(file);
@@ -72,7 +72,7 @@ export function isOwnStorageUrl(url) {
   return typeof url === "string" && url.startsWith(`${PUBLIC_URL}/`);
 }
 
-function pathFromPublicUrl(url) {
+export function pathFromPublicUrl(url) {
   return url.startsWith(`${PUBLIC_URL}/`) ? url.slice(PUBLIC_URL.length + 1) : null;
 }
 
