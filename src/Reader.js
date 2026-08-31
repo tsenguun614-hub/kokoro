@@ -191,7 +191,8 @@ export default function Reader() {
   useEffect(() => {
     if (!user || !seriesInfo) { setBookmarked(false); return; }
     isBookmarked(user.id, seriesInfo.id).then(setBookmarked).catch(() => setBookmarked(false));
-  }, [user, seriesInfo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, seriesInfo]);
 
   // Real comments for the current chapter.
   useEffect(() => {
@@ -203,7 +204,8 @@ export default function Reader() {
       .catch(() => { if (!cancelled) setComments([]); })
       .finally(() => { if (!cancelled) setCommentsLoading(false); });
     return () => { cancelled = true; };
-  }, [chapterData, user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chapterData, user?.id]);
 
   const handlePostReply = async (parentId) => {
     if (!user) { navigate("/auth"); return; }
@@ -275,7 +277,8 @@ export default function Reader() {
     if (user && seriesInfo && chapterData) {
       recordChapterRead(user.id, seriesInfo.id, chapterData.id).catch(() => {});
     }
-  }, [user, seriesInfo, chapterData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, seriesInfo, chapterData]);
 
   const chaptersAsc = [...allChapters].sort((a, b) => a.chapter_number - b.chapter_number);
   const chapterIdx = chaptersAsc.findIndex((c) => c.chapter_number === CURRENT);

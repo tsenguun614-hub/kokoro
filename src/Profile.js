@@ -82,7 +82,9 @@ export default function Profile() {
       })
       .catch(() => {})
       .finally(() => setDataLoading(false));
-  }, [user, authLoading, navigate]);
+    // keyed on user?.id, not the user object, so a same-user reference change doesn't retrigger this fetch
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, authLoading, navigate]);
 
   // Last-read chapter per series, derived from history, to show bookmark progress.
   const lastReadBySeries = {};

@@ -67,7 +67,8 @@ export default function SeriesDetail() {
   useEffect(() => {
     if (!user || !series) { setBookmarked(false); return; }
     isBookmarked(user.id, series.id).then(setBookmarked).catch(() => setBookmarked(false));
-  }, [user, series]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, series]);
 
   const toggleBookmark = async () => {
     if (!user) { navigate("/auth"); return; }

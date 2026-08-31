@@ -270,7 +270,8 @@ export default function Admin() {
     if (authLoading) return;
     if (!user) { setProfileLoading(false); return; }
     getProfile(user.id).then(setProfile).catch(() => setProfile(null)).finally(() => setProfileLoading(false));
-  }, [user, authLoading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, authLoading]);
 
   const isAdmin = profile?.is_admin === true;
 

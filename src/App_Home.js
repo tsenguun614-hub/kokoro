@@ -173,10 +173,10 @@ export default function Home() {
             </div>
           </div>
 
-          {trendingLoading ? (
+          {trendingLoading && trending.length === 0 ? (
             <p style={{ fontSize: 14, color: "rgba(247,243,234,0.35)", fontWeight: 400 }}>Ачааллаж байна...</p>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: isMobile ? 12 : 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: isMobile ? 12 : 16, opacity: trendingLoading ? 0.5 : 1, transition: "opacity 0.15s" }}>
               {trending.map((series, i) => (
                 <div key={series.id} className="manga-card" onClick={() => navigate(`/series/${series.id}`)}
                   style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, overflow: "hidden", boxShadow: "0 4px 20px rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.07)" }}>
