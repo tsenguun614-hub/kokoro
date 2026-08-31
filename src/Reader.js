@@ -112,6 +112,7 @@ export default function Reader() {
   const [chapterData, setChapterData] = useState(null);
   const [allChapters, setAllChapters] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
+  const [imagesReady, setImagesReady] = useState(false);
   const [dataError, setDataError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [scrollProgress, setScrollProgress] = useState(0);
@@ -150,10 +151,23 @@ export default function Reader() {
     setSeriesInfo(null);
     setAllChapters([]);
 
+    setImagesReady(false);
     getChapterWithPages(seriesId, CURRENT)
-      .then((ch) => { if (!cancelled) setChapterData(ch); })
+      .then(async (ch) => {
+        if (cancelled) return;
+        setChapterData(ch);
+        // Preload every page's actual image bytes before leaving the loading
+        // screen, so the reader appears fully ready with nothing left to pop
+        // in — rather than showing per-page spinners as each one arrives.
+        await Promise.all((ch.pages || []).map((p) => new Promise((resolve) => {
+          const img = new window.Image();
+          img.onload = resolve;
+          img.onerror = resolve;
+          img.src = p.image_url;
+        })));
+      })
       .catch((err) => { if (!cancelled) setDataError(err.message); })
-      .finally(() => { if (!cancelled) setDataLoading(false); });
+      .finally(() => { if (!cancelled) { setImagesReady(true); setDataLoading(false); } });
 
     getSeriesById(seriesId).then((s) => { if (!cancelled) setSeriesInfo(s); }).catch(() => {});
     getChaptersForSeries(seriesId).then((chs) => { if (!cancelled) setAllChapters(chs); }).catch(() => {});
@@ -262,7 +276,7 @@ export default function Reader() {
   const border = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.1)";
   const readerBg = isDark ? "#0d0d18" : "#e8e4dc";
 
-  if (dataLoading) {
+  if (dataLoading || !imagesReady) {
     return (
       <div style={{ height: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, background: bg, color: text, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>
         <style>{css}</style>
