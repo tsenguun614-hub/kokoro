@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import useWindowSize from "./useWindowSize";
 import { FONT_IMPORT, baseCss } from "./sharedStyles";
@@ -121,6 +121,7 @@ export default function Reader() {
   const [showSettings, setShowSettings] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [loadedPages, setLoadedPages] = useState({});
+  const [wantLoad, setWantLoad] = useState({});
   const [isDark, setIsDark] = useState(true);
   const [comment, setComment] = useState("");
   const [bookmarked, setBookmarked] = useState(false);
@@ -130,7 +131,7 @@ export default function Reader() {
   const widthMap = { compact: 560, comfortable: 720, wide: 900, full: "100%" };
   const maxW = widthMap[width];
 
-  const pages = chapterData?.pages || [];
+  const pages = useMemo(() => chapterData?.pages || [], [chapterData]);
   const progress = pages.length ? Math.round((currentPage / pages.length) * 100) : 0;
 
   // Fetch this chapter's pages first — that's the only thing the reader
@@ -190,7 +191,30 @@ export default function Reader() {
     }
     setCurrentPage(1);
     setLoadedPages({});
+    setWantLoad({ 1: true, 2: true });
   }, [chapter]);
+
+  // Own IntersectionObserver instead of the native `loading="lazy"` attribute
+  // — gives explicit, verifiable control over when each page actually starts
+  // fetching, rather than relying on browser-internal heuristics.
+  useEffect(() => {
+    if (pages.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const newlyVisible = entries.filter((e) => e.isIntersecting).map((e) => Number(e.target.dataset.page));
+        if (newlyVisible.length === 0) return;
+        setWantLoad((prev) => {
+          const next = { ...prev };
+          newlyVisible.forEach((pg) => { next[pg] = true; });
+          return next;
+        });
+        newlyVisible.forEach((pg) => observer.unobserve(pageRefs.current[pg]));
+      },
+      { rootMargin: "1200px 0px" }
+    );
+    Object.values(pageRefs.current).forEach((el) => el && observer.observe(el));
+    return () => observer.disconnect();
+  }, [pages]);
 
   // Track scroll position for current page in scroll mode
   useEffect(() => {
@@ -423,7 +447,7 @@ export default function Reader() {
         {/* Pages */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingBottom: 80 }}>
           {(readMode === "scroll" ? pages : [pages[currentPage - 1]]).filter(Boolean).map((page) => (
-            <div key={page.id} ref={el => pageRefs.current[page.page_number] = el} style={{
+            <div key={page.id} ref={el => pageRefs.current[page.page_number] = el} data-page={page.page_number} style={{
               width: "100%",
               maxWidth: isMobile ? "100%" : (typeof maxW === "number" ? maxW : "100%"),
               margin: readMode === "scroll" ? "0" : "20px auto",
@@ -459,14 +483,15 @@ export default function Reader() {
                   }} />
                 </div>
               )}
-              <img
-                className={`page-img ${loadedPages[page.page_number] ? "loaded" : "loading"}`}
-                src={page.image_url}
-                alt={`Page ${page.page_number}`}
-                onLoad={() => handlePageLoad(page.page_number)}
-                loading={page.page_number <= 2 ? "eager" : "lazy"}
-                fetchPriority={page.page_number === 1 ? "high" : "auto"}
-              />
+              {wantLoad[page.page_number] && (
+                <img
+                  className={`page-img ${loadedPages[page.page_number] ? "loaded" : "loading"}`}
+                  src={page.image_url}
+                  alt={`Page ${page.page_number}`}
+                  onLoad={() => handlePageLoad(page.page_number)}
+                  fetchPriority={page.page_number === 1 ? "high" : "auto"}
+                />
+              )}
             </div>
           ))}
 
