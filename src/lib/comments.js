@@ -32,6 +32,26 @@ export async function addComment(chapterId, userId, body) {
   };
 }
 
+// For the Admin > Comments moderation view — every comment site-wide, most
+// recent first, with enough context (series/chapter) to know what it's on.
+export async function getAllComments(limit = 200) {
+  const { data, error } = await supabase
+    .from("chapter_comments")
+    .select("id, body, created_at, profiles(username), chapters(chapter_number, series(id, title))")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data.map((c) => ({
+    id: c.id,
+    body: c.body,
+    created_at: c.created_at,
+    username: c.profiles?.username || "Хэрэглэгч",
+    chapterNumber: c.chapters?.chapter_number,
+    seriesId: c.chapters?.series?.id,
+    seriesTitle: c.chapters?.series?.title || "—",
+  }));
+}
+
 export async function deleteComment(id) {
   const { error } = await supabase.from("chapter_comments").delete().eq("id", id);
   if (error) throw error;

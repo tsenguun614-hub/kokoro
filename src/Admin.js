@@ -7,6 +7,7 @@ import { getProfile, signOut } from "./lib/auth";
 import { getAllSeries, createSeries, updateSeriesRecord, setSeriesGenres, createChapterWithPages, deleteSeries as deleteSeriesApi, deleteChapter as deleteChapterApi, getChaptersForSeries, getAllImageUrls } from "./lib/series";
 import { uploadCoverImage, uploadChapterPages, deleteCoverIfOwned, deleteFolder, compressImage, uploadFile, isOwnStorageUrl, pathFromPublicUrl } from "./lib/storage";
 import { getGenres, createGenre, deleteGenre as deleteGenreApi } from "./lib/genres";
+import { getAllComments, deleteComment as deleteCommentApi } from "./lib/comments";
 import { timeAgo, formatGenres } from "./lib/format";
 
 function clampRating(val) {
@@ -119,6 +120,8 @@ export default function Admin() {
   const [genres, setGenres] = useState([]);
   const [genresLoading, setGenresLoading] = useState(true);
   const [newGenreName, setNewGenreName] = useState("");
+  const [comments, setComments] = useState([]);
+  const [commentsLoading, setCommentsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("series"); // series | chapter
   const [notification, setNotification] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -281,9 +284,24 @@ export default function Admin() {
     getGenres().then(setGenres).catch(() => showNotif("Failed to load genres", "error")).finally(() => setGenresLoading(false));
   }, []);
 
+  const loadComments = useCallback(() => {
+    setCommentsLoading(true);
+    getAllComments().then(setComments).catch(() => showNotif("Failed to load comments", "error")).finally(() => setCommentsLoading(false));
+  }, []);
+
   useEffect(() => {
-    if (isAdmin) { loadSeries(); loadGenres(); }
-  }, [isAdmin, loadSeries, loadGenres]);
+    if (isAdmin) { loadSeries(); loadGenres(); loadComments(); }
+  }, [isAdmin, loadSeries, loadGenres, loadComments]);
+
+  const handleDeleteComment = async (id) => {
+    try {
+      await deleteCommentApi(id);
+      setComments(prev => prev.filter(c => c.id !== id));
+      showNotif("Comment deleted", "error");
+    } catch (err) {
+      showNotif(err.message, "error");
+    }
+  };
 
   const handleAddGenre = async () => {
     const name = newGenreName.trim();
@@ -449,6 +467,7 @@ export default function Admin() {
     { id: "series", icon: "📚", label: "Series" },
     { id: "upload", icon: "⊕", label: "Upload" },
     { id: "genres", icon: "🏷", label: "Genres" },
+    { id: "comments", icon: "💬", label: "Comments" },
     { id: "settings", icon: "⚙", label: "Settings" },
   ];
 
@@ -917,6 +936,41 @@ export default function Admin() {
             <p style={{ fontSize: 13, color: "rgba(247,243,234,0.25)", marginTop: 16, maxWidth: 420, lineHeight: 1.6 }}>
               Removing a genre only removes it from this list — series already tagged with it keep that genre text until you edit them.
             </p>
+          </div>
+        )}
+
+        {/* ── COMMENTS ── */}
+        {activeNav === "comments" && (
+          <div className="fade-up">
+            <div style={{ marginBottom: 28 }}>
+              <div style={{ fontSize: 12, color: "#c9a84c", letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 6 }}>✦ Moderation</div>
+              <h1 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 28, fontWeight: 700 }}>Manage Comments</h1>
+            </div>
+
+            {commentsLoading ? (
+              <p style={{ fontSize: 13, color: "rgba(247,243,234,0.35)" }}>Loading...</p>
+            ) : comments.length === 0 ? (
+              <p style={{ fontSize: 13, color: "rgba(247,243,234,0.35)" }}>No comments yet.</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 3, maxWidth: 720 }}>
+                {comments.map(c => (
+                  <div key={c.id} className="series-row" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, padding: "12px 16px", background: "rgba(255,255,255,0.02)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 4, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 13, color: "#c9a84c", fontWeight: 600 }}>{c.username}</span>
+                        <span
+                          onClick={() => c.seriesId && navigate(`/series/${c.seriesId}`)}
+                          style={{ fontSize: 12, color: "rgba(247,243,234,0.4)", cursor: c.seriesId ? "pointer" : "default" }}
+                        >{c.seriesTitle} · Ch. {c.chapterNumber}</span>
+                        <span style={{ fontSize: 12, color: "rgba(247,243,234,0.3)" }}>{timeAgo(c.created_at)}</span>
+                      </div>
+                      <p style={{ fontSize: 14, color: "#f7f3ea", lineHeight: 1.5, wordBreak: "break-word" }}>{c.body}</p>
+                    </div>
+                    <button className="danger-btn" onClick={() => handleDeleteComment(c.id)} style={{ background: "rgba(200,60,60,0.08)", border: "1px solid rgba(200,60,60,0.15)", borderRadius: 4, padding: "4px 8px", fontSize: 13, color: "rgba(200,60,60,0.5)", flexShrink: 0 }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

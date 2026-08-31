@@ -347,4 +347,10 @@ create policy "Users can delete their own comments"
   on chapter_comments for delete
   using (auth.uid() = user_id);
 
+-- Separate permissive policy — combined with the one above via OR, so a
+-- delete succeeds if the caller owns the comment OR is an admin.
+create policy "Admins can delete any comment"
+  on chapter_comments for delete
+  using (exists (select 1 from profiles where id = auth.uid() and is_admin));
+
 create index if not exists idx_chapter_comments_chapter_id on chapter_comments(chapter_id, created_at);
