@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import useWindowSize from "./useWindowSize";
 import Header from "./components/Header";
 import { FONT_IMPORT, baseCss } from "./sharedStyles";
-import { signIn, signUp } from "./lib/auth";
+import { signIn, signUp, signInWithOAuth } from "./lib/auth";
 
 const css = `
   ${FONT_IMPORT}
@@ -120,6 +120,18 @@ export default function Auth() {
     }
   };
 
+  const handleOAuthLogin = async (provider) => {
+    setErrors({});
+    try {
+      await signInWithOAuth(provider);
+      // signInWithOAuth redirects the whole page to the provider, so nothing
+      // else runs here on success — this only executes if it fails to even
+      // start the redirect (e.g. the provider isn't enabled in Supabase yet).
+    } catch (err) {
+      setErrors({ form: err.message });
+    }
+  };
+
   const switchMode = (m) => {
     setMode(m);
     setErrors({});
@@ -211,8 +223,8 @@ export default function Auth() {
 
             {/* Social login */}
             <div className="fade-up fade-up-2" style={{ display: "flex", gap: 10, marginBottom: 24 }}>
-              {[["G", "Google", "#4285f4"], ["F", "Facebook", "#1877f2"]].map(([icon, label, color]) => (
-                <button key={label} className="social-btn" style={{
+              {[["G", "Google", "#4285f4", "google"], ["F", "Facebook", "#1877f2", "facebook"]].map(([icon, label, color, provider]) => (
+                <button key={label} className="social-btn" onClick={() => handleOAuthLogin(provider)} style={{
                   flex: 1, padding: "11px",
                   background: "rgba(255,255,255,0.04)",
                   border: "1px solid rgba(255,255,255,0.1)",

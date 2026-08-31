@@ -16,6 +16,17 @@ export async function signIn({ email, password }) {
   return data;
 }
 
+// provider: "google" | "facebook" — must be enabled in the Supabase dashboard
+// (Authentication > Providers) with credentials from that provider's own
+// developer console first, or this redirects into an error page.
+export async function signInWithOAuth(provider) {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: { redirectTo: window.location.origin },
+  });
+  if (error) throw error;
+}
+
 export async function signOut() {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
