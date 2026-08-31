@@ -2,8 +2,6 @@ import { useNavigate } from "react-router-dom";
 import useWindowSize from "../useWindowSize";
 import { MAX_W } from "../sharedStyles";
 
-const LINKS = [["Бидний тухай", "/"], ["Холбоо барих", "/"], ["DMCA", "/"]];
-
 export default function Footer() {
   const navigate = useNavigate();
   const screenWidth = useWindowSize();
@@ -16,13 +14,6 @@ export default function Footer() {
           <div style={{ width: 24, height: 24, background: "linear-gradient(135deg, #c9a84c, #8a6020)", borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>⬡</div>
           <span style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 15, color: "rgba(247,243,234,0.6)" }}>KOKORO Manhwa</span>
         </div>
-        {!isMobile && (
-          <div style={{ display: "flex", gap: 24 }}>
-            {LINKS.map(([label, path]) => (
-              <span key={label} className="nav-link" onClick={() => navigate(path)} style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 13, fontWeight: 400, color: "rgba(247,243,234,0.3)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{label}</span>
-            ))}
-          </div>
-        )}
         <p style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 13, fontWeight: 400, color: "rgba(247,243,234,0.25)" }}>© 2025 · Монгол уншигчдад зориулав</p>
       </div>
     </footer>
