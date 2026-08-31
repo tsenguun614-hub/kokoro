@@ -214,11 +214,9 @@ export default function Auth() {
             </div>
 
             <div className="fade-up fade-up-1">
-              <h3 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 24, fontWeight: 700, marginBottom: 6 }}>
+              <h3 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 24, fontWeight: 700, marginBottom: 28 }}>
                 {mode === "login" ? "Тавтай Морил" : "Join Kokoro"}
               </h3>
-              <p style={{ fontSize: 14, fontWeight: 400, color: "rgba(247,243,234,0.4)", marginBottom: 28 }}>
-</p>
             </div>
 
             {/* Social login */}

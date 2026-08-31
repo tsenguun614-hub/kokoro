@@ -114,12 +114,6 @@ export async function getSeriesById(id) {
   return shapeSeries(data);
 }
 
-export async function getSeriesBySlug(slug) {
-  const { data, error } = await supabase.from("series").select(`*, ${GENRES_SELECT}`).eq("slug", slug).single();
-  if (error) throw error;
-  return shapeSeries(data);
-}
-
 export async function getChaptersForSeries(seriesId) {
   const { data, error } = await supabase
     .from("chapters")

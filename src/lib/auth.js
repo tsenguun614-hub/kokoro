@@ -32,12 +32,6 @@ export async function signOut() {
   if (error) throw error;
 }
 
-export async function getCurrentUser() {
-  const { data, error } = await supabase.auth.getUser();
-  if (error) throw error;
-  return data.user;
-}
-
 export function onAuthStateChange(callback) {
   const { data } = supabase.auth.onAuthStateChange((_event, session) => {
     callback(session?.user ?? null);

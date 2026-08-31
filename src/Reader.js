@@ -61,13 +61,6 @@ const css = `
   }
   .setting-btn:hover { border-color: rgba(201,168,76,0.5) !important; color: #c9a84c !important; }
 
-  .progress-thumb {
-    cursor: grab;
-    transition: transform 0.15s;
-  }
-  .progress-thumb:hover { transform: scale(1.3); }
-  .progress-thumb:active { cursor: grabbing; }
-
   .comment-input:focus {
     border-color: rgba(201,168,76,0.5) !important;
     outline: none;
@@ -400,8 +393,8 @@ export default function Reader() {
           {/* Left: Home + Series */}
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <button className="icon-btn" onClick={() => navigate("/")} style={{ color: sub, padding: 8, borderRadius: 6 }}>
-  <HomeIcon />
-</button>
+              <HomeIcon />
+            </button>
             {!isMobile && seriesInfo && (
               <>
                 <span style={{ color: sub, fontSize: 13 }}>/</span>
