@@ -132,6 +132,7 @@ export default function Reader() {
   const [commentsLoading, setCommentsLoading] = useState(true);
   const [comment, setComment] = useState("");
   const [postingComment, setPostingComment] = useState(false);
+  const [commentError, setCommentError] = useState("");
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyText, setReplyText] = useState("");
   const [postingReply, setPostingReply] = useState(false);
@@ -246,12 +247,13 @@ export default function Reader() {
     const body = comment.trim();
     if (!body || postingComment) return;
     setPostingComment(true);
+    setCommentError("");
     try {
       const created = await addComment(chapterData.id, user.id, body);
       setComments((prev) => [created, ...prev]);
       setComment("");
-    } catch {
-      // silently ignore — the comment box just keeps whatever was typed
+    } catch (err) {
+      setCommentError(err.message || "Сэтгэгдэл илгээхэд алдаа гарлаа");
     } finally {
       setPostingComment(false);
     }
@@ -663,6 +665,9 @@ export default function Reader() {
                   transition: "all 0.2s",
                 }}
               >{user ? (postingComment ? "Илгээж байна..." : "Нийтлэх") : "Нэвтрэх"}</button>
+              {commentError && (
+                <p style={{ fontSize: 12, color: "#e07070", marginTop: 8 }}>{commentError}</p>
+              )}
             </div>
 
             {commentsLoading ? (
