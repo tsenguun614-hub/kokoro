@@ -19,7 +19,7 @@ function shapeComment(c, likesByComment, currentUserId) {
 export async function getComments(chapterId, currentUserId) {
   const { data, error } = await supabase
     .from("chapter_comments")
-    .select("id, body, created_at, user_id, parent_id, profiles(username)")
+    .select("id, body, created_at, user_id, parent_id, profiles!user_id(username)")
     .eq("chapter_id", chapterId)
     .order("created_at", { ascending: true });
   if (error) throw error;
@@ -53,7 +53,7 @@ export async function addComment(chapterId, userId, body, parentId = null) {
   const { data, error } = await supabase
     .from("chapter_comments")
     .insert({ chapter_id: chapterId, user_id: userId, body, parent_id: parentId })
-    .select("id, body, created_at, user_id, parent_id, profiles(username)")
+    .select("id, body, created_at, user_id, parent_id, profiles!user_id(username)")
     .single();
   if (error) throw error;
   return { ...shapeComment(data, {}, userId), replies: [] };
@@ -81,7 +81,7 @@ export async function toggleLike(commentId, userId, currentlyLiked) {
 export async function getAllComments(limit = 200) {
   const { data, error } = await supabase
     .from("chapter_comments")
-    .select("id, body, created_at, profiles(username), chapters(chapter_number, series(id, title))")
+    .select("id, body, created_at, profiles!user_id(username), chapters(chapter_number, series(id, title))")
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw error;
