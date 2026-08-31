@@ -607,16 +607,16 @@ export default function Reader() {
               />
               <button
                 onClick={handlePostComment}
-                disabled={!user || !comment.trim() || postingComment}
+                disabled={user ? (!comment.trim() || postingComment) : false}
                 style={{
                   padding: "10px 24px",
-                  background: user && comment.trim() ? "linear-gradient(135deg, #c9a84c, #8a6020)" : surface,
-                  border: `1px solid ${user && comment.trim() ? "transparent" : border}`,
+                  background: !user || comment.trim() ? "linear-gradient(135deg, #c9a84c, #8a6020)" : surface,
+                  border: `1px solid ${!user || comment.trim() ? "transparent" : border}`,
                   borderRadius: 6, fontSize: 13,
                   fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500,
                   letterSpacing: "0.1em", textTransform: "uppercase",
-                  color: user && comment.trim() ? "#080810" : sub,
-                  cursor: user && comment.trim() ? "pointer" : "default",
+                  color: !user || comment.trim() ? "#080810" : sub,
+                  cursor: !user || comment.trim() ? "pointer" : "default",
                   transition: "all 0.2s",
                 }}
               >{user ? (postingComment ? "Илгээж байна..." : "Нийтлэх") : "Нэвтрэх"}</button>
