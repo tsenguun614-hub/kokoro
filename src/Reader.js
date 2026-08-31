@@ -543,6 +543,50 @@ export default function Reader() {
         </div>
       </div>
 
+      {/* ── FLOATING CHAPTER NAV ── */}
+      <div style={{
+        position: "fixed", bottom: 20, left: "50%", zIndex: 200,
+        transform: showUI ? "translate(-50%, 0)" : "translate(-50%, 150%)",
+        transition: "transform 0.3s ease",
+        display: "flex", alignItems: "center", gap: 4,
+        background: isDark ? "rgba(18,18,30,0.95)" : "rgba(248,244,236,0.95)",
+        backdropFilter: "blur(20px)",
+        border: `1px solid ${isDark ? "rgba(201,168,76,0.2)" : "rgba(201,168,76,0.3)"}`,
+        borderRadius: 999, padding: 6,
+        boxShadow: "0 12px 40px rgba(0,0,0,0.45)",
+      }}>
+        <button
+          className="nav-btn"
+          disabled={!prevChapter}
+          onClick={() => prevChapter && navigate(`/read/${seriesId}/${prevChapter.chapter_number}`)}
+          style={{
+            width: 40, height: 40, borderRadius: "50%",
+            background: prevChapter ? surface : "transparent",
+            border: "none", color: prevChapter ? text : "rgba(247,243,234,0.2)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: prevChapter ? "pointer" : "default",
+          }}
+        ><ChevronLeft /></button>
+
+        <div style={{ padding: "0 16px", textAlign: "center", minWidth: 76 }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: sub, marginBottom: 2 }}>Бүлэг</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: text, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>{CURRENT} / {chaptersAsc.length || "-"}</div>
+        </div>
+
+        <button
+          className="nav-btn"
+          disabled={!nextChapter}
+          onClick={() => nextChapter && navigate(`/read/${seriesId}/${nextChapter.chapter_number}`)}
+          style={{
+            width: 40, height: 40, borderRadius: "50%",
+            background: nextChapter ? "linear-gradient(135deg, #c9a84c, #8a6020)" : "transparent",
+            border: "none", color: nextChapter ? "#080810" : "rgba(247,243,234,0.2)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: nextChapter ? "pointer" : "default",
+          }}
+        ><ChevronRight /></button>
+      </div>
+
       {/* ── COMMENTS PANEL ── */}
       {showComments && (
         <div className="slide-down" style={{
