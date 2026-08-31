@@ -4,7 +4,7 @@ import { baseCss, FONT_IMPORT } from "./sharedStyles";
 import useWindowSize from "./useWindowSize";
 import useAuth from "./lib/useAuth";
 import { getProfile, signOut } from "./lib/auth";
-import { getAllSeries, createSeries, updateSeriesRecord, setSeriesGenres, createChapterWithPages, deleteSeries as deleteSeriesApi, deleteChapter as deleteChapterApi, getChaptersForSeries, getAllImageUrls } from "./lib/series";
+import { getAllSeries, createSeries, updateSeriesRecord, setSeriesGenres, createChapterWithPages, deleteSeries as deleteSeriesApi, deleteChapter as deleteChapterApi, getChaptersForSeries, getAllChapters, updateChapterRecord, getAllImageUrls } from "./lib/series";
 import { uploadCoverImage, uploadChapterPages, deleteCoverIfOwned, deleteFolder, compressImage, uploadFile, isOwnStorageUrl, pathFromPublicUrl } from "./lib/storage";
 import { getGenres, createGenre, deleteGenre as deleteGenreApi } from "./lib/genres";
 import { getAllComments, deleteComment as deleteCommentApi } from "./lib/comments";
@@ -123,6 +123,11 @@ export default function Admin() {
   const [newGenreName, setNewGenreName] = useState("");
   const [comments, setComments] = useState([]);
   const [commentsLoading, setCommentsLoading] = useState(true);
+  const [allChapters, setAllChapters] = useState([]);
+  const [allChaptersLoading, setAllChaptersLoading] = useState(true);
+  const [editingChapter, setEditingChapter] = useState(null); // the chapter row being edited, or null
+  const [editChapterForm, setEditChapterForm] = useState(null);
+  const [savingChapterEdit, setSavingChapterEdit] = useState(false);
   const [activeTab, setActiveTab] = useState("series"); // series | chapter
   const [notification, setNotification] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -269,6 +274,48 @@ export default function Admin() {
     }
   };
 
+  // ── Chapters manager (all series) ──
+  const openEditChapter = (ch) => {
+    setEditingChapter(ch);
+    setEditChapterForm({ chapterNum: ch.chapter_number, title: ch.title || "" });
+  };
+
+  const closeEditChapter = () => {
+    setEditingChapter(null);
+    setEditChapterForm(null);
+  };
+
+  const handleSaveChapterEdit = async () => {
+    if (!editChapterForm.chapterNum) { showNotif("Chapter number is required", "error"); return; }
+    setSavingChapterEdit(true);
+    try {
+      const updated = await updateChapterRecord(editingChapter.id, {
+        chapter_number: Number(editChapterForm.chapterNum),
+        title: editChapterForm.title,
+      });
+      setAllChapters(prev => prev.map(c => c.id === editingChapter.id ? { ...c, chapter_number: updated.chapter_number, title: updated.title } : c));
+      showNotif(`Chapter ${updated.chapter_number} updated`);
+      closeEditChapter();
+      loadSeries();
+    } catch (err) {
+      showNotif(err.message, "error");
+    } finally {
+      setSavingChapterEdit(false);
+    }
+  };
+
+  const handleDeleteChapterGlobal = async (chapter) => {
+    try {
+      await deleteFolder(`chapters/${chapter.series.id}/${chapter.chapter_number}`);
+      await deleteChapterApi(chapter.id);
+      setAllChapters(prev => prev.filter(c => c.id !== chapter.id));
+      loadSeries();
+      showNotif(`Chapter ${chapter.chapter_number} deleted`, "error");
+    } catch (err) {
+      showNotif(err.message, "error");
+    }
+  };
+
   useEffect(() => {
     if (authLoading) return;
     if (!user) { setProfileLoading(false); return; }
@@ -297,9 +344,14 @@ export default function Admin() {
     getSiteSettings().then(setSiteSettings).catch(() => showNotif("Failed to load settings", "error"));
   }, []);
 
+  const loadAllChapters = useCallback(() => {
+    setAllChaptersLoading(true);
+    getAllChapters().then(setAllChapters).catch(() => showNotif("Failed to load chapters", "error")).finally(() => setAllChaptersLoading(false));
+  }, []);
+
   useEffect(() => {
-    if (isAdmin) { loadSeries(); loadGenres(); loadComments(); loadSettings(); }
-  }, [isAdmin, loadSeries, loadGenres, loadComments, loadSettings]);
+    if (isAdmin) { loadSeries(); loadGenres(); loadComments(); loadSettings(); loadAllChapters(); }
+  }, [isAdmin, loadSeries, loadGenres, loadComments, loadSettings, loadAllChapters]);
 
   const handleDeleteComment = async (id) => {
     try {
@@ -492,6 +544,7 @@ export default function Admin() {
   const navItems = [
     { id: "dashboard", icon: "◈", label: "Dashboard" },
     { id: "series", icon: "📚", label: "Series" },
+    { id: "chapters", icon: "📄", label: "Chapters" },
     { id: "upload", icon: "⊕", label: "Upload" },
     { id: "genres", icon: "🏷", label: "Genres" },
     { id: "comments", icon: "💬", label: "Comments" },
@@ -755,6 +808,89 @@ export default function Admin() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ── CHAPTERS (ALL) ── */}
+        {activeNav === "chapters" && !editingChapter && (
+          <div className="fade-up">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 28 }}>
+              <div>
+                <div style={{ fontSize: 12, color: "#c9a84c", letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 6 }}>✦ Content</div>
+                <h1 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 28, fontWeight: 700 }}>Manage Chapters</h1>
+              </div>
+              <button className="cta-btn" onClick={() => setActiveNav("upload")} style={{ background: "linear-gradient(135deg, #c9a84c, #8a6020)", color: "#080810", padding: "11px 20px", borderRadius: 6, fontSize: 13, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase" }}>+ Add New</button>
+            </div>
+
+            <div style={{ overflowX: "auto" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 700 }}>
+                {/* Header row */}
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 70px 70px 100px 80px", gap: 12, padding: "8px 16px", fontSize: 12, color: "rgba(247,243,234,0.3)", letterSpacing: "0.12em", textTransform: "uppercase" }}>
+                  <span>Series / Chapter</span><span>Ch.</span><span>Pages</span><span>Posted</span><span>Actions</span>
+                </div>
+
+                {allChaptersLoading ? (
+                  <div style={{ padding: "20px", fontSize: 13, color: "rgba(247,243,234,0.35)" }}>Loading...</div>
+                ) : allChapters.length === 0 ? (
+                  <div style={{ padding: "20px", fontSize: 13, color: "rgba(247,243,234,0.35)" }}>No chapters yet — add one from the Upload tab.</div>
+                ) : allChapters.map(ch => (
+                  <div key={ch.id} className="series-row" style={{ display: "grid", gridTemplateColumns: "2fr 70px 70px 100px 80px", gap: 12, alignItems: "center", padding: "12px 16px", background: "rgba(255,255,255,0.02)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <div className="nav-item" onClick={() => openEditChapter(ch)} style={{ display: "flex", gap: 12, alignItems: "center", cursor: "pointer", minWidth: 0 }}>
+                      <img src={ch.series?.cover_url} alt="" style={{ width: 32, height: 44, borderRadius: 3, objectFit: "cover", flexShrink: 0 }} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", color: "#f7f3ea", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ch.series?.title || "—"}</div>
+                        <div style={{ fontSize: 13, color: "rgba(247,243,234,0.35)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ch.title || "(no title)"}</div>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 13, color: "#c9a84c", fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 700 }}>{ch.chapter_number}</span>
+                    <span style={{ fontSize: 14, color: "rgba(247,243,234,0.7)" }}>{ch.pageCount}</span>
+                    <span style={{ fontSize: 13, color: "rgba(247,243,234,0.3)", fontWeight: 400 }}>{timeAgo(ch.created_at)}</span>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={() => openEditChapter(ch)} style={{ background: "rgba(201,168,76,0.08)", border: "1px solid rgba(201,168,76,0.15)", borderRadius: 4, padding: "4px 8px", fontSize: 13, color: "#c9a84c", cursor: "pointer" }}>✎</button>
+                      <button className="danger-btn" onClick={() => handleDeleteChapterGlobal(ch)} style={{ background: "rgba(200,60,60,0.08)", border: "1px solid rgba(200,60,60,0.15)", borderRadius: 4, padding: "4px 8px", fontSize: 13, color: "rgba(200,60,60,0.5)" }}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── EDIT CHAPTER ── */}
+        {activeNav === "chapters" && editingChapter && (
+          <div className="fade-up">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 28 }}>
+              <div>
+                <div style={{ fontSize: 12, color: "#c9a84c", letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 6 }}>✦ Content</div>
+                <h1 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 28, fontWeight: 700 }}>Edit Chapter {editingChapter.chapter_number}</h1>
+                <p style={{ fontSize: 13, color: "rgba(247,243,234,0.4)", marginTop: 4 }}>{editingChapter.series?.title}</p>
+              </div>
+              <button className="ghost-btn" onClick={closeEditChapter} style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(247,243,234,0.4)", padding: "9px 18px", borderRadius: 6, fontSize: 13, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", letterSpacing: "0.08em", textTransform: "uppercase" }}>← Back to list</button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 420, marginBottom: 32 }}>
+              <div>
+                <label style={{ fontSize: 13, color: "rgba(247,243,234,0.45)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>Chapter Number *</label>
+                <input className="admin-input" type="number" value={editChapterForm.chapterNum} onChange={e => setEditChapterForm(f => ({ ...f, chapterNum: e.target.value }))} />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, color: "rgba(247,243,234,0.45)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>Chapter Title</label>
+                <input className="admin-input" value={editChapterForm.title} onChange={e => setEditChapterForm(f => ({ ...f, title: e.target.value }))} />
+              </div>
+              <p style={{ fontSize: 13, color: "rgba(247,243,234,0.3)", lineHeight: 1.6 }}>
+                {editingChapter.pageCount} page{editingChapter.pageCount === 1 ? "" : "s"} uploaded. To change the page images themselves, delete this chapter and re-upload it from the Upload tab.
+              </p>
+              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+                <button className="ghost-btn" onClick={closeEditChapter} style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(247,243,234,0.4)", padding: "11px 22px", borderRadius: 6, fontSize: 13, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", letterSpacing: "0.08em", textTransform: "uppercase" }}>Cancel</button>
+                <button className="cta-btn" onClick={handleSaveChapterEdit} disabled={savingChapterEdit} style={{ background: "linear-gradient(135deg, #c9a84c, #8a6020)", color: "#080810", padding: "11px 28px", borderRadius: 6, fontSize: 13, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", boxShadow: "0 6px 20px rgba(201,168,76,0.25)", opacity: savingChapterEdit ? 0.6 : 1 }}>{savingChapterEdit ? "Saving..." : "Save Changes ✦"}</button>
+              </div>
+            </div>
+
+            <div style={{ maxWidth: 420, background: "rgba(200,60,60,0.04)", border: "1px solid rgba(200,60,60,0.15)", borderRadius: 10, padding: "20px" }}>
+              <h3 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 15, fontWeight: 700, marginBottom: 6, color: "#e07070" }}>Danger Zone</h3>
+              <p style={{ fontSize: 13, color: "rgba(247,243,234,0.4)", marginBottom: 14, lineHeight: 1.5 }}>Permanently delete this chapter and its uploaded pages.</p>
+              <button className="danger-btn" onClick={() => { handleDeleteChapterGlobal(editingChapter); closeEditChapter(); }} style={{ background: "rgba(200,60,60,0.08)", border: "1px solid rgba(200,60,60,0.2)", borderRadius: 6, padding: "9px 18px", fontSize: 13, color: "#e07070", fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", letterSpacing: "0.05em" }}>Delete Chapter</button>
             </div>
           </div>
         )}

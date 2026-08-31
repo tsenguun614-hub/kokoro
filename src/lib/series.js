@@ -176,6 +176,23 @@ export async function deleteChapter(id) {
   if (error) throw error;
 }
 
+// Every chapter across every series, for the Admin > Chapters manager.
+export async function getAllChapters(limit = 500) {
+  const { data, error } = await supabase
+    .from("chapters")
+    .select("id, chapter_number, title, created_at, chapter_pages(count), series:series_id (id, title, cover_url)")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data.map((c) => ({ ...c, pageCount: c.chapter_pages?.[0]?.count ?? 0 }));
+}
+
+export async function updateChapterRecord(id, fields) {
+  const { data, error } = await supabase.from("chapters").update(fields).eq("id", id).select().single();
+  if (error) throw error;
+  return data;
+}
+
 export async function createChapterWithPages({ seriesId, chapterNumber, title, imageUrls }) {
   const { data: chapter, error: chapterError } = await supabase
     .from("chapters")
