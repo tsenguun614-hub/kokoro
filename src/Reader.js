@@ -5,7 +5,7 @@ import { FONT_IMPORT, baseCss } from "./sharedStyles";
 import { getSeriesById, getChapterWithPages, getChaptersForSeries } from "./lib/series";
 import { addBookmark, removeBookmark, isBookmarked } from "./lib/bookmarks";
 import { recordChapterRead } from "./lib/history";
-import { getComments, addComment } from "./lib/comments";
+import { getComments, addComment, toggleLike } from "./lib/comments";
 import { timeAgo } from "./lib/format";
 import useAuth from "./lib/useAuth";
 
@@ -86,6 +86,9 @@ function SettingsIcon() {
 function BookmarkIcon({ filled }) {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill={filled ? "#c9a84c" : "none"} stroke="#c9a84c" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>;
 }
+function HeartIcon({ filled }) {
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill={filled ? "#c9a84c" : "none"} stroke="#c9a84c" strokeWidth="2"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 000-7.8z"/></svg>;
+}
 function CommentIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>;
 }
@@ -129,6 +132,9 @@ export default function Reader() {
   const [commentsLoading, setCommentsLoading] = useState(true);
   const [comment, setComment] = useState("");
   const [postingComment, setPostingComment] = useState(false);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [replyText, setReplyText] = useState("");
+  const [postingReply, setPostingReply] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const scrollRef = useRef(null);
   const pageRefs = useRef({});
@@ -191,12 +197,49 @@ export default function Reader() {
     if (!chapterData) return;
     let cancelled = false;
     setCommentsLoading(true);
-    getComments(chapterData.id)
+    getComments(chapterData.id, user?.id)
       .then((c) => { if (!cancelled) setComments(c); })
       .catch(() => { if (!cancelled) setComments([]); })
       .finally(() => { if (!cancelled) setCommentsLoading(false); });
     return () => { cancelled = true; };
-  }, [chapterData]);
+  }, [chapterData, user]);
+
+  const handlePostReply = async (parentId) => {
+    if (!user) { navigate("/auth"); return; }
+    const body = replyText.trim();
+    if (!body || postingReply) return;
+    setPostingReply(true);
+    try {
+      const created = await addComment(chapterData.id, user.id, body, parentId);
+      setComments((prev) => prev.map((c) => c.id === parentId ? { ...c, replies: [...c.replies, created] } : c));
+      setReplyText("");
+      setReplyingTo(null);
+    } catch {
+      // keep the draft so the user doesn't lose what they typed
+    } finally {
+      setPostingReply(false);
+    }
+  };
+
+  const handleToggleLike = async (targetComment, isReply, parentId) => {
+    if (!user) { navigate("/auth"); return; }
+    const wasLiked = targetComment.likedByMe;
+    // Optimistic update — flip immediately, reconcile with the server after.
+    const patch = (c) => c.id === targetComment.id
+      ? { ...c, likedByMe: !wasLiked, likeCount: c.likeCount + (wasLiked ? -1 : 1) }
+      : c;
+    setComments((prev) => prev.map((c) =>
+      isReply && c.id === parentId ? { ...c, replies: c.replies.map(patch) } : (!isReply ? patch(c) : c)
+    ));
+    try {
+      await toggleLike(targetComment.id, user.id, wasLiked);
+    } catch {
+      // revert on failure
+      setComments((prev) => prev.map((c) =>
+        isReply && c.id === parentId ? { ...c, replies: c.replies.map(patch) } : (!isReply ? patch(c) : c)
+      ));
+    }
+  };
 
   const handlePostComment = async () => {
     if (!user) { navigate("/auth"); return; }
@@ -628,20 +671,108 @@ export default function Reader() {
               <p style={{ fontSize: 13, color: sub, fontWeight: 400 }}>Одоогоор сэтгэгдэл алга. Эхлээд сэтгэгдэл үлдээгээрэй!</p>
             ) : (
               comments.map((c) => (
-                <div key={c.id} style={{ display: "flex", gap: 10, marginBottom: 18 }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
-                    background: "linear-gradient(135deg, #c9a84c, #8a6020)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 14, color: "#080810", fontWeight: 600, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif",
-                  }}>{c.username[0]?.toUpperCase()}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 4 }}>
-                      <span style={{ fontSize: 13, color: "#c9a84c", fontWeight: 600, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>{c.username}</span>
-                      <span style={{ fontSize: 12, color: sub, fontWeight: 400, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>{timeAgo(c.created_at)}</span>
+                <div key={c.id} style={{ marginBottom: 20 }}>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <div style={{
+                      width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+                      background: "linear-gradient(135deg, #c9a84c, #8a6020)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 14, color: "#080810", fontWeight: 600, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif",
+                    }}>{c.username[0]?.toUpperCase()}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 4 }}>
+                        <span style={{ fontSize: 13, color: "#c9a84c", fontWeight: 600, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>{c.username}</span>
+                        <span style={{ fontSize: 12, color: sub, fontWeight: 400, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>{timeAgo(c.created_at)}</span>
+                      </div>
+                      <p style={{ fontSize: 14, color: text, lineHeight: 1.6, fontWeight: 400, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", wordBreak: "break-word", marginBottom: 8 }}>{c.body}</p>
+
+                      <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                        <button onClick={() => handleToggleLike(c, false, null)} style={{
+                          background: "none", border: "none", cursor: "pointer", padding: 0,
+                          display: "flex", alignItems: "center", gap: 5,
+                          color: c.likedByMe ? "#c9a84c" : sub, fontSize: 12, fontWeight: 500,
+                          fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif",
+                        }}>
+                          <HeartIcon filled={c.likedByMe} /> {c.likeCount > 0 && c.likeCount}
+                        </button>
+                        <button onClick={() => { setReplyingTo(replyingTo === c.id ? null : c.id); setReplyText(""); }} style={{
+                          background: "none", border: "none", cursor: "pointer", padding: 0,
+                          color: sub, fontSize: 12, fontWeight: 500,
+                          fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif",
+                        }}>Хариулах</button>
+                      </div>
+
+                      {replyingTo === c.id && (
+                        <div style={{ marginTop: 10 }}>
+                          <textarea
+                            className="comment-input"
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            placeholder={`${c.username}-д хариулах...`}
+                            rows={2}
+                            style={{
+                              width: "100%", padding: "10px 12px",
+                              background: surface, border: `1px solid ${border}`,
+                              borderRadius: 6, resize: "none",
+                              fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 13, fontWeight: 400,
+                              color: text, marginBottom: 8,
+                            }}
+                          />
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button
+                              onClick={() => handlePostReply(c.id)}
+                              disabled={!replyText.trim() || postingReply}
+                              style={{
+                                padding: "7px 18px",
+                                background: replyText.trim() ? "linear-gradient(135deg, #c9a84c, #8a6020)" : surface,
+                                border: `1px solid ${replyText.trim() ? "transparent" : border}`,
+                                borderRadius: 6, fontSize: 12,
+                                fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500,
+                                letterSpacing: "0.08em", textTransform: "uppercase",
+                                color: replyText.trim() ? "#080810" : sub,
+                                cursor: replyText.trim() ? "pointer" : "default",
+                              }}
+                            >{postingReply ? "..." : "Илгээх"}</button>
+                            <button onClick={() => setReplyingTo(null)} style={{
+                              padding: "7px 18px", background: "transparent", border: `1px solid ${border}`,
+                              borderRadius: 6, fontSize: 12, color: sub, cursor: "pointer",
+                              fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif",
+                            }}>Цуцлах</button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <p style={{ fontSize: 14, color: text, lineHeight: 1.6, fontWeight: 400, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", wordBreak: "break-word" }}>{c.body}</p>
                   </div>
+
+                  {c.replies.length > 0 && (
+                    <div style={{ marginLeft: 46, marginTop: 14, display: "flex", flexDirection: "column", gap: 14 }}>
+                      {c.replies.map((r) => (
+                        <div key={r.id} style={{ display: "flex", gap: 8 }}>
+                          <div style={{
+                            width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
+                            background: "linear-gradient(135deg, #c9a84c, #8a6020)",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: 12, color: "#080810", fontWeight: 600, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif",
+                          }}>{r.username[0]?.toUpperCase()}</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 3 }}>
+                              <span style={{ fontSize: 12, color: "#c9a84c", fontWeight: 600, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>{r.username}</span>
+                              <span style={{ fontSize: 11, color: sub, fontWeight: 400, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>{timeAgo(r.created_at)}</span>
+                            </div>
+                            <p style={{ fontSize: 13, color: text, lineHeight: 1.5, fontWeight: 400, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", wordBreak: "break-word", marginBottom: 6 }}>{r.body}</p>
+                            <button onClick={() => handleToggleLike(r, true, c.id)} style={{
+                              background: "none", border: "none", cursor: "pointer", padding: 0,
+                              display: "flex", alignItems: "center", gap: 5,
+                              color: r.likedByMe ? "#c9a84c" : sub, fontSize: 11, fontWeight: 500,
+                              fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif",
+                            }}>
+                              <HeartIcon filled={r.likedByMe} /> {r.likeCount > 0 && r.likeCount}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))
             )}

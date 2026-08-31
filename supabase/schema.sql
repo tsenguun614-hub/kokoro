@@ -330,7 +330,8 @@ create table if not exists chapter_comments (
   chapter_id bigint not null references chapters(id) on delete cascade,
   user_id uuid not null references profiles(id) on delete cascade,
   body text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  parent_id bigint references chapter_comments(id) on delete cascade
 );
 
 alter table chapter_comments enable row level security;
@@ -354,3 +355,29 @@ create policy "Admins can delete any comment"
   using (exists (select 1 from profiles where id = auth.uid() and is_admin));
 
 create index if not exists idx_chapter_comments_chapter_id on chapter_comments(chapter_id, created_at);
+create index if not exists idx_chapter_comments_parent_id on chapter_comments(parent_id);
+
+-- One-level replies use parent_id above; likes are a separate table so a
+-- user can only like a given comment once (enforced by the composite key).
+create table if not exists chapter_comment_likes (
+  comment_id bigint not null references chapter_comments(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (comment_id, user_id)
+);
+
+alter table chapter_comment_likes enable row level security;
+
+create policy "Likes are publicly readable"
+  on chapter_comment_likes for select
+  using (true);
+
+create policy "Signed-in users can like as themselves"
+  on chapter_comment_likes for insert
+  with check (auth.uid() = user_id);
+
+create policy "Users can remove their own like"
+  on chapter_comment_likes for delete
+  using (auth.uid() = user_id);
+
+create index if not exists idx_chapter_comment_likes_comment_id on chapter_comment_likes(comment_id);
