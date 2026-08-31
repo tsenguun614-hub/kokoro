@@ -5,6 +5,8 @@ import { FONT_IMPORT, baseCss } from "./sharedStyles";
 import { getSeriesById, getChapterWithPages, getChaptersForSeries } from "./lib/series";
 import { addBookmark, removeBookmark, isBookmarked } from "./lib/bookmarks";
 import { recordChapterRead } from "./lib/history";
+import { getComments, addComment } from "./lib/comments";
+import { timeAgo } from "./lib/format";
 import useAuth from "./lib/useAuth";
 
 // Pages don't carry stored dimensions, so the loading placeholder uses a
@@ -121,13 +123,16 @@ export default function Reader() {
   const [showUI, setShowUI] = useState(true);
   const [showChapters, setShowChapters] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showComments, setShowComments] = useState(false);
   const [loadedPages, setLoadedPages] = useState({});
   const [isDark, setIsDark] = useState(true);
+  const [comments, setComments] = useState([]);
+  const [commentsLoading, setCommentsLoading] = useState(true);
   const [comment, setComment] = useState("");
+  const [postingComment, setPostingComment] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const scrollRef = useRef(null);
   const pageRefs = useRef({});
+  const commentsRef = useRef(null);
 
   const widthMap = { compact: 560, comfortable: 720, wide: 900, full: "100%" };
   const maxW = widthMap[width];
@@ -180,6 +185,34 @@ export default function Reader() {
     if (!user || !seriesInfo) { setBookmarked(false); return; }
     isBookmarked(user.id, seriesInfo.id).then(setBookmarked).catch(() => setBookmarked(false));
   }, [user, seriesInfo]);
+
+  // Real comments for the current chapter.
+  useEffect(() => {
+    if (!chapterData) return;
+    let cancelled = false;
+    setCommentsLoading(true);
+    getComments(chapterData.id)
+      .then((c) => { if (!cancelled) setComments(c); })
+      .catch(() => { if (!cancelled) setComments([]); })
+      .finally(() => { if (!cancelled) setCommentsLoading(false); });
+    return () => { cancelled = true; };
+  }, [chapterData]);
+
+  const handlePostComment = async () => {
+    if (!user) { navigate("/auth"); return; }
+    const body = comment.trim();
+    if (!body || postingComment) return;
+    setPostingComment(true);
+    try {
+      const created = await addComment(chapterData.id, user.id, body);
+      setComments((prev) => [created, ...prev]);
+      setComment("");
+    } catch {
+      // silently ignore — the comment box just keeps whatever was typed
+    } finally {
+      setPostingComment(false);
+    }
+  };
 
   const toggleBookmark = async () => {
     if (!user) { navigate("/auth"); return; }
@@ -252,10 +285,9 @@ export default function Reader() {
   // and the middle — or any tap in scroll mode — toggles the header so
   // images can fill the whole screen.
   const handleReaderTap = useCallback((e) => {
-    if (showChapters || showSettings || showComments) {
+    if (showChapters || showSettings) {
       setShowChapters(false);
       setShowSettings(false);
-      setShowComments(false);
       return;
     }
     if (readMode === "paged") {
@@ -265,7 +297,7 @@ export default function Reader() {
       if (ratio > 0.7) { goPage(currentPage + 1); return; }
     }
     setShowUI(v => !v);
-  }, [showChapters, showSettings, showComments, readMode, currentPage, goPage]);
+  }, [showChapters, showSettings, readMode, currentPage, goPage]);
 
   const handlePageLoad = (id) => setLoadedPages(p => ({ ...p, [id]: true }));
 
@@ -382,7 +414,7 @@ export default function Reader() {
             <button className="icon-btn" onClick={toggleBookmark} style={{ color: sub, padding: 8, borderRadius: 6 }}>
               <BookmarkIcon filled={bookmarked} />
             </button>
-            <button className="icon-btn" onClick={() => { setShowComments(!showComments); setShowSettings(false); setShowChapters(false); }} style={{ color: showComments ? "#c9a84c" : sub, padding: 8, borderRadius: 6 }}>
+            <button className="icon-btn" onClick={() => commentsRef.current?.scrollIntoView({ behavior: "smooth" })} style={{ color: sub, padding: 8, borderRadius: 6 }}>
               <CommentIcon />
             </button>
             <button className="icon-btn" onClick={() => setIsDark(!isDark)} style={{ color: sub, padding: 8, borderRadius: 6 }}>
@@ -540,6 +572,80 @@ export default function Reader() {
               </div>
             </div>
           )}
+
+          {/* ── COMMENTS ── */}
+          <div ref={commentsRef} style={{
+            width: "100%",
+            maxWidth: typeof maxW === "number" && !isMobile ? Math.min(maxW, 720) : "100%",
+            padding: isMobile ? "0 4%" : "0",
+            margin: "8px auto 40px",
+            borderTop: `1px solid ${border}`,
+            paddingTop: 28,
+          }}>
+            <h3 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 18, fontWeight: 700, color: text, marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+              <CommentIcon /> Сэтгэгдэл
+            </h3>
+            <p style={{ fontSize: 13, color: sub, fontWeight: 400, marginBottom: 20 }}>{comments.length} сэтгэгдэл</p>
+
+            <div style={{ marginBottom: 28 }}>
+              <textarea
+                className="comment-input"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder={user ? "Сэтгэгдэл бичих..." : "Сэтгэгдэл бичихийн тулд нэвтэрнэ үү"}
+                disabled={!user}
+                rows={3}
+                style={{
+                  width: "100%", padding: "12px 14px",
+                  background: surface, border: `1px solid ${border}`,
+                  borderRadius: 8, resize: "none",
+                  fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 14, fontWeight: 400,
+                  color: text, marginBottom: 10,
+                  transition: "border-color 0.2s",
+                  opacity: user ? 1 : 0.6,
+                }}
+              />
+              <button
+                onClick={handlePostComment}
+                disabled={!user || !comment.trim() || postingComment}
+                style={{
+                  padding: "10px 24px",
+                  background: user && comment.trim() ? "linear-gradient(135deg, #c9a84c, #8a6020)" : surface,
+                  border: `1px solid ${user && comment.trim() ? "transparent" : border}`,
+                  borderRadius: 6, fontSize: 13,
+                  fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500,
+                  letterSpacing: "0.1em", textTransform: "uppercase",
+                  color: user && comment.trim() ? "#080810" : sub,
+                  cursor: user && comment.trim() ? "pointer" : "default",
+                  transition: "all 0.2s",
+                }}
+              >{user ? (postingComment ? "Илгээж байна..." : "Нийтлэх") : "Нэвтрэх"}</button>
+            </div>
+
+            {commentsLoading ? (
+              <p style={{ fontSize: 13, color: sub, fontWeight: 400 }}>Ачааллаж байна...</p>
+            ) : comments.length === 0 ? (
+              <p style={{ fontSize: 13, color: sub, fontWeight: 400 }}>Одоогоор сэтгэгдэл алга. Эхлээд сэтгэгдэл үлдээгээрэй!</p>
+            ) : (
+              comments.map((c) => (
+                <div key={c.id} style={{ display: "flex", gap: 10, marginBottom: 18 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+                    background: "linear-gradient(135deg, #c9a84c, #8a6020)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 14, color: "#080810", fontWeight: 600, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif",
+                  }}>{c.username[0]?.toUpperCase()}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 4 }}>
+                      <span style={{ fontSize: 13, color: "#c9a84c", fontWeight: 600, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>{c.username}</span>
+                      <span style={{ fontSize: 12, color: sub, fontWeight: 400, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>{timeAgo(c.created_at)}</span>
+                    </div>
+                    <p style={{ fontSize: 14, color: text, lineHeight: 1.6, fontWeight: 400, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", wordBreak: "break-word" }}>{c.body}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
 
@@ -587,78 +693,6 @@ export default function Reader() {
         ><ChevronRight /></button>
       </div>
 
-      {/* ── COMMENTS PANEL ── */}
-      {showComments && (
-        <div className="slide-down" style={{
-          position: "fixed", top: 60, right: isMobile ? 8 : 16, left: isMobile ? 8 : "auto", bottom: 70, zIndex: 199,
-          width: isMobile ? "auto" : 320,
-          background: isDark ? "#0f0f1e" : "#f5f1e8",
-          border: `1px solid ${isDark ? "rgba(201,168,76,0.15)" : "rgba(201,168,76,0.25)"}`,
-          borderRadius: 10,
-          display: "flex", flexDirection: "column",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
-          overflow: "hidden",
-        }}>
-          <div style={{ padding: "16px 18px", borderBottom: `1px solid ${border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 17, fontWeight: 700, color: text }}>сэтгэгдэл</span>
-            <span style={{ fontSize: 12, color: sub, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 400 }}>Ch. {CURRENT} · 3 сэтгэгдэл</span>
-          </div>
-
-          <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
-            {[
-              { user: "Narantsetseg", time: "2h ago", text: "The emperor's expression in this chapter... 😭 He finally understands what he lost.", avatar: "N" },
-              { user: "Munkhjin", time: "5h ago", text: "Chapter 156 hits different. The art in the last few pages is incredible.", avatar: "M" },
-              { user: "Altantsetseg", time: "1d ago", text: "I've been waiting for this chapter for 2 weeks. Worth every second.", avatar: "A" },
-            ].map((c, i) => (
-              <div key={i} style={{ marginBottom: 16, display: "flex", gap: 10 }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
-                  background: "linear-gradient(135deg, #c9a84c, #8a6020)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 14, color: "#080810", fontWeight: 600, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif",
-                }}>{c.avatar}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 4 }}>
-                    <span style={{ fontSize: 13, color: "#c9a84c", fontWeight: 500, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>{c.user}</span>
-                    <span style={{ fontSize: 12, color: sub, fontWeight: 400, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>{c.time}</span>
-                  </div>
-                  <p style={{ fontSize: 14, color: text, lineHeight: 1.6, fontWeight: 400, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>{c.text}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ padding: "12px 14px", borderTop: `1px solid ${border}` }}>
-            <textarea
-              className="comment-input"
-              value={comment}
-              onChange={e => setComment(e.target.value)}
-              placeholder="Сэтгэгдэл бичих..."
-              rows={2}
-              style={{
-                width: "100%", padding: "10px 12px",
-                background: surface,
-                border: `1px solid ${border}`,
-                borderRadius: 6, resize: "none",
-                fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 13, fontWeight: 400,
-                color: text, marginBottom: 8,
-                transition: "border-color 0.2s",
-              }}
-            />
-            <button style={{
-              width: "100%", padding: "9px",
-              background: comment.trim() ? "linear-gradient(135deg, #c9a84c, #8a6020)" : surface,
-              border: `1px solid ${comment.trim() ? "transparent" : border}`,
-              borderRadius: 6, fontSize: 13,
-              fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500,
-              letterSpacing: "0.1em", textTransform: "uppercase",
-              color: comment.trim() ? "#080810" : sub,
-              cursor: comment.trim() ? "pointer" : "default",
-              transition: "all 0.2s",
-            }}>Нийтлэх</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
