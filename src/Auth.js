@@ -108,7 +108,7 @@ export default function Auth() {
     setLoading(true);
     try {
       if (mode === "login") {
-        await signIn({ email: form.email, password: form.password });
+        await signIn({ email: form.email, password: form.password, rememberMe });
       } else {
         await signUp({ email: form.email, password: form.password, username: form.name });
       }

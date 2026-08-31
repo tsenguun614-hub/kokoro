@@ -6,6 +6,7 @@ import Footer from "./components/Footer";
 import { MAX_W, FONT_IMPORT, baseCss } from "./sharedStyles";
 import { getFeaturedSeries, getRecentChapters, getTrendingSeries, getSiteStats, getAllSeries } from "./lib/series";
 import { getGenres } from "./lib/genres";
+import { getSiteSettings } from "./lib/settings";
 import { timeAgo, isRecent, formatCount } from "./lib/format";
 
 const TREND_PERIODS = [["day", "Өнөөдөр"], ["week", "7 хоног"], ["month", "1 сар"]];
@@ -52,6 +53,7 @@ export default function Home() {
     getGenres().then(gs => setGenres(["All", ...gs.map(g => g.name)])).catch(() => {});
     getSiteStats().then(setSiteStats).catch(() => {});
     getAllSeries({ sortBy: "newest" }).then(list => setNewSeriesList(list.slice(0, 5))).catch(() => setNewSeriesList([]));
+    getSiteSettings().then(s => { document.title = `${s.site_name} • ${s.tagline}`; }).catch(() => {});
   }, []);
 
   useEffect(() => {

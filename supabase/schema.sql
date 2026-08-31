@@ -8,7 +8,10 @@ create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   username text,
   is_admin boolean not null default false,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  notif_new_chapters boolean not null default true,
+  show_progress boolean not null default true,
+  auto_bookmark boolean not null default false
 );
 
 alter table profiles enable row level security;
@@ -381,3 +384,25 @@ create policy "Users can remove their own like"
   using (auth.uid() = user_id);
 
 create index if not exists idx_chapter_comment_likes_comment_id on chapter_comment_likes(comment_id);
+
+-- ── SITE SETTINGS ─────────────────────────────────────────
+-- Singleton row, admin-editable from Admin > Settings.
+create table if not exists site_settings (
+  id integer primary key default 1 check (id = 1),
+  site_name text not null default 'KOKORO Manhwa',
+  tagline text not null default 'Монгол хэлээр хамгийн сайхан роман манхва',
+  contact_email text not null default 'admin@kokoro.mn',
+  updated_at timestamptz not null default now()
+);
+
+insert into site_settings (id) values (1) on conflict (id) do nothing;
+
+alter table site_settings enable row level security;
+
+create policy "Site settings are publicly readable"
+  on site_settings for select
+  using (true);
+
+create policy "Only admins can update site settings"
+  on site_settings for update
+  using (exists (select 1 from profiles where id = auth.uid() and is_admin));

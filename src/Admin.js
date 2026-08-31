@@ -8,6 +8,7 @@ import { getAllSeries, createSeries, updateSeriesRecord, setSeriesGenres, create
 import { uploadCoverImage, uploadChapterPages, deleteCoverIfOwned, deleteFolder, compressImage, uploadFile, isOwnStorageUrl, pathFromPublicUrl } from "./lib/storage";
 import { getGenres, createGenre, deleteGenre as deleteGenreApi } from "./lib/genres";
 import { getAllComments, deleteComment as deleteCommentApi } from "./lib/comments";
+import { getSiteSettings, updateSiteSettings } from "./lib/settings";
 import { timeAgo, formatGenres } from "./lib/format";
 
 function clampRating(val) {
@@ -126,6 +127,8 @@ export default function Admin() {
   const [notification, setNotification] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [recompress, setRecompress] = useState({ running: false, total: 0, done: 0, failed: 0, savedBytes: 0, origBytes: 0 });
+  const [siteSettings, setSiteSettings] = useState(null);
+  const [savingSettings, setSavingSettings] = useState(false);
 
   // New series form
   const [newSeries, setNewSeries] = useState({ title: "", genreIds: [], status: "Ongoing", rating: "", description: "", author: "", artist: "", coverUrl: "" });
@@ -290,9 +293,13 @@ export default function Admin() {
     getAllComments().then(setComments).catch(() => showNotif("Failed to load comments", "error")).finally(() => setCommentsLoading(false));
   }, []);
 
+  const loadSettings = useCallback(() => {
+    getSiteSettings().then(setSiteSettings).catch(() => showNotif("Failed to load settings", "error"));
+  }, []);
+
   useEffect(() => {
-    if (isAdmin) { loadSeries(); loadGenres(); loadComments(); }
-  }, [isAdmin, loadSeries, loadGenres, loadComments]);
+    if (isAdmin) { loadSeries(); loadGenres(); loadComments(); loadSettings(); }
+  }, [isAdmin, loadSeries, loadGenres, loadComments, loadSettings]);
 
   const handleDeleteComment = async (id) => {
     try {
@@ -314,6 +321,25 @@ export default function Admin() {
       showNotif(`"${name}" added`);
     } catch (err) {
       showNotif(err.message, "error");
+    }
+  };
+
+  const updateSiteSettingsForm = (field, val) => setSiteSettings(s => ({ ...s, [field]: val }));
+
+  const handleSaveSettings = async () => {
+    setSavingSettings(true);
+    try {
+      const saved = await updateSiteSettings({
+        site_name: siteSettings.site_name,
+        tagline: siteSettings.tagline,
+        contact_email: siteSettings.contact_email,
+      });
+      setSiteSettings(saved);
+      showNotif("Settings saved");
+    } catch (err) {
+      showNotif(err.message, "error");
+    } finally {
+      setSavingSettings(false);
     }
   };
 
@@ -982,15 +1008,19 @@ export default function Admin() {
               <div style={{ fontSize: 12, color: "#c9a84c", letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 6 }}>✦ Configuration</div>
               <h1 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 28, fontWeight: 700 }}>Site Settings</h1>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 520 }}>
-              {[["Site Name", "KOKORO Manhwa"], ["Tagline", "Монгол хэлээр хамгийн сайхан роман манхва"], ["Contact Email", "admin@kokoro.mn"]].map(([label, val]) => (
-                <div key={label}>
-                  <label style={{ fontSize: 13, color: "rgba(247,243,234,0.45)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>{label}</label>
-                  <input className="admin-input" defaultValue={val} />
-                </div>
-              ))}
-              <button className="cta-btn" style={{ background: "linear-gradient(135deg, #c9a84c, #8a6020)", color: "#080810", padding: "12px 24px", borderRadius: 6, fontSize: 13, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", alignSelf: "flex-start", marginTop: 8, boxShadow: "0 6px 20px rgba(201,168,76,0.25)" }}>Save Settings ✦</button>
-            </div>
+            {!siteSettings ? (
+              <p style={{ fontSize: 13, color: "rgba(247,243,234,0.35)" }}>Loading...</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 520 }}>
+                {[["Site Name", "site_name"], ["Tagline", "tagline"], ["Contact Email", "contact_email"]].map(([label, field]) => (
+                  <div key={field}>
+                    <label style={{ fontSize: 13, color: "rgba(247,243,234,0.45)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>{label}</label>
+                    <input className="admin-input" value={siteSettings[field] || ""} onChange={e => updateSiteSettingsForm(field, e.target.value)} />
+                  </div>
+                ))}
+                <button className="cta-btn" onClick={handleSaveSettings} disabled={savingSettings} style={{ background: "linear-gradient(135deg, #c9a84c, #8a6020)", color: "#080810", padding: "12px 24px", borderRadius: 6, fontSize: 13, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", alignSelf: "flex-start", marginTop: 8, boxShadow: "0 6px 20px rgba(201,168,76,0.25)", opacity: savingSettings ? 0.6 : 1 }}>{savingSettings ? "Saving..." : "Save Settings ✦"}</button>
+              </div>
+            )}
 
             <div style={{ marginTop: 40, maxWidth: 520, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "24px" }}>
               <h3 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Recompress Existing Images</h3>

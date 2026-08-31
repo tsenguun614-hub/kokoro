@@ -6,6 +6,7 @@ import { getSeriesById, getChapterWithPages, getChaptersForSeries } from "./lib/
 import { addBookmark, removeBookmark, isBookmarked } from "./lib/bookmarks";
 import { recordChapterRead } from "./lib/history";
 import { getComments, addComment, toggleLike } from "./lib/comments";
+import { getProfile } from "./lib/auth";
 import { timeAgo } from "./lib/format";
 import useAuth from "./lib/useAuth";
 
@@ -180,10 +181,23 @@ export default function Reader() {
     return () => { cancelled = true; };
   }, [seriesId, CURRENT]);
 
-  // Whether the signed-in user has this series bookmarked.
+  // Whether the signed-in user has this series bookmarked — and if their
+  // "auto-bookmark when I start reading" preference is on and it isn't
+  // bookmarked yet, bookmark it now.
   useEffect(() => {
     if (!user || !seriesInfo) { setBookmarked(false); return; }
-    isBookmarked(user.id, seriesInfo.id).then(setBookmarked).catch(() => setBookmarked(false));
+    let cancelled = false;
+    Promise.all([isBookmarked(user.id, seriesInfo.id), getProfile(user.id).catch(() => null)])
+      .then(([isBm, profile]) => {
+        if (cancelled) return;
+        if (!isBm && profile?.auto_bookmark) {
+          addBookmark(user.id, seriesInfo.id).then(() => { if (!cancelled) setBookmarked(true); }).catch(() => {});
+        } else {
+          setBookmarked(isBm);
+        }
+      })
+      .catch(() => { if (!cancelled) setBookmarked(false); });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, seriesInfo]);
 

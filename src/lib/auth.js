@@ -1,6 +1,7 @@
-import { supabase } from "./supabaseClient";
+import { supabase, setRememberMe } from "./supabaseClient";
 
 export async function signUp({ email, password, username }) {
+  setRememberMe(true); // no "remember me" choice at signup — default to persisted
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -10,7 +11,10 @@ export async function signUp({ email, password, username }) {
   return data;
 }
 
-export async function signIn({ email, password }) {
+export async function signIn({ email, password, rememberMe = true }) {
+  // Must be set before signing in — the session token is written to
+  // localStorage or sessionStorage based on this flag as part of the call.
+  setRememberMe(rememberMe);
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
   return data;
@@ -20,6 +24,7 @@ export async function signIn({ email, password }) {
 // (Authentication > Providers) with credentials from that provider's own
 // developer console first, or this redirects into an error page.
 export async function signInWithOAuth(provider) {
+  setRememberMe(true); // no "remember me" choice for OAuth — default to persisted
   const { error } = await supabase.auth.signInWithOAuth({
     provider,
     options: { redirectTo: window.location.origin },

@@ -79,6 +79,7 @@ export default function Profile() {
         setUserName(p.username || "");
         setBookmarks(b);
         setHistory(h);
+        setPrefs({ notif: p.notif_new_chapters, progress: p.show_progress, autobook: p.auto_bookmark });
       })
       .catch(() => {})
       .finally(() => setDataLoading(false));
@@ -104,7 +105,12 @@ export default function Profile() {
   const handleSaveProfile = async () => {
     setSavingProfile(true);
     try {
-      await updateProfile(user.id, { username: userName });
+      await updateProfile(user.id, {
+        username: userName,
+        notif_new_chapters: prefs.notif,
+        show_progress: prefs.progress,
+        auto_bookmark: prefs.autobook,
+      });
     } finally {
       setSavingProfile(false);
     }
@@ -240,7 +246,7 @@ export default function Profile() {
                       }}>✕</button>
 
                       {/* Progress bar */}
-                      {lastRead && (
+                      {lastRead && prefs.progress && (
                         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
                           <div style={{ height: 3, background: "rgba(255,255,255,0.1)" }}>
                             <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg, #c9a84c, #f0d080)" }} />
@@ -261,7 +267,7 @@ export default function Profile() {
                       <h3 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 14, fontWeight: 700, color: "#f7f3ea", marginBottom: 5, lineHeight: 1.3 }}>{b.title}</h3>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                         <span style={{ fontSize: 12, color: "#c9a84c", fontWeight: 400 }}>{lastRead ? `Ch. ${lastRead.chapter.chapter_number}` : "Эхлээгүй"}</span>
-                        {lastRead && <span style={{ fontSize: 12, color: "rgba(247,243,234,0.25)", fontWeight: 400 }}>{pct}%</span>}
+                        {lastRead && prefs.progress && <span style={{ fontSize: 12, color: "rgba(247,243,234,0.25)", fontWeight: 400 }}>{pct}%</span>}
                       </div>
                       {lastRead && <div style={{ fontSize: 12, color: "rgba(247,243,234,0.25)", fontWeight: 400 }}>{timeAgo(lastRead.last_read_at)}</div>}
                     </div>
@@ -341,15 +347,18 @@ export default function Profile() {
                 <h3 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 18, paddingBottom: 14, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>Тохиргоо</h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   {[
-                    ["Шинэ бүлгийн и-мэйл мэдэгдэл", "notif"],
-                    ["Картан дээр уншилтын явцыг харуулах", "progress"],
-                    ["Уншиж эхлэхэд автоматаар хадгалах", "autobook"],
-                  ].map(([label, key]) => (
-                    <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: 14, color: "rgba(247,243,234,0.6)", fontWeight: 400 }}>{label}</span>
-                      <div onClick={() => setPrefs(p => ({ ...p, [key]: !p[key] }))} style={{ width: 38, height: 22, borderRadius: 11, background: prefs[key] ? "linear-gradient(135deg, #c9a84c, #8a6020)" : "rgba(255,255,255,0.1)", position: "relative", cursor: "pointer", transition: "background 0.2s", flexShrink: 0 }}>
-                        <div style={{ position: "absolute", top: 3, left: prefs[key] ? 19 : 3, width: 16, height: 16, borderRadius: "50%", background: "white", transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.3)" }} />
+                    ["Шинэ бүлгийн и-мэйл мэдэгдэл", "notif", "Тохиргоо хадгалагдана, гэхдээ и-мэйл илгээх систем одоогоор холбогдоогүй"],
+                    ["Картан дээр уншилтын явцыг харуулах", "progress", null],
+                    ["Уншиж эхлэхэд автоматаар хадгалах", "autobook", null],
+                  ].map(([label, key, note]) => (
+                    <div key={key}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 14, color: "rgba(247,243,234,0.6)", fontWeight: 400 }}>{label}</span>
+                        <div onClick={() => setPrefs(p => ({ ...p, [key]: !p[key] }))} style={{ width: 38, height: 22, borderRadius: 11, background: prefs[key] ? "linear-gradient(135deg, #c9a84c, #8a6020)" : "rgba(255,255,255,0.1)", position: "relative", cursor: "pointer", transition: "background 0.2s", flexShrink: 0 }}>
+                          <div style={{ position: "absolute", top: 3, left: prefs[key] ? 19 : 3, width: 16, height: 16, borderRadius: "50%", background: "white", transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.3)" }} />
+                        </div>
                       </div>
+                      {note && <p style={{ fontSize: 12, color: "rgba(247,243,234,0.25)", fontWeight: 400, marginTop: 4 }}>{note}</p>}
                     </div>
                   ))}
                 </div>
