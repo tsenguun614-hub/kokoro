@@ -114,6 +114,7 @@ export default function Reader() {
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [scrollProgress, setScrollProgress] = useState(0);
   const [readMode, setReadMode] = useState("scroll"); // scroll | paged
   const [width, setWidth] = useState("comfortable"); // compact | comfortable | wide | full
   const [showUI, setShowUI] = useState(true);
@@ -131,7 +132,12 @@ export default function Reader() {
   const maxW = widthMap[width];
 
   const pages = useMemo(() => chapterData?.pages || [], [chapterData]);
-  const progress = pages.length ? Math.round((currentPage / pages.length) * 100) : 0;
+  // In scroll mode, progress tracks actual scroll position (smooth, updates
+  // continuously) instead of jumping only when the "current page" changes.
+  // Paged mode has no continuous scroll to track, so it stays page-based.
+  const progress = readMode === "scroll"
+    ? scrollProgress
+    : (pages.length ? Math.round((currentPage / pages.length) * 100) : 0);
 
   // Fetch this chapter's pages first — that's the only thing the reader
   // needs to start showing content. Series info and the full chapter list
@@ -211,6 +217,9 @@ export default function Reader() {
         if (dist < minDist) { minDist = dist; closest = Number(pg); }
       });
       setCurrentPage(closest);
+
+      const scrollable = el.scrollHeight - el.clientHeight;
+      setScrollProgress(scrollable > 0 ? Math.min(100, Math.max(0, Math.round((el.scrollTop / scrollable) * 100))) : 0);
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
@@ -255,9 +264,15 @@ export default function Reader() {
 
   if (dataLoading) {
     return (
-      <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: bg, color: text, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>
+      <div style={{ height: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, background: bg, color: text, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif" }}>
         <style>{css}</style>
-        <p style={{ fontSize: 14, color: sub, fontWeight: 400 }}>Ачааллаж байна...</p>
+        <div style={{
+          width: 28, height: 28, borderRadius: "50%",
+          border: "2px solid rgba(201,168,76,0.2)",
+          borderTopColor: "#c9a84c",
+          animation: "spin 0.8s linear infinite",
+        }} />
+        <p style={{ fontSize: 14, color: "rgba(247,243,234,0.35)", fontWeight: 400 }}>Ачааллаж байна...</p>
       </div>
     );
   }
