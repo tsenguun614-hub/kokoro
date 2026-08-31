@@ -172,21 +172,18 @@ export async function createChapterWithPages({ seriesId, chapterNumber, title, i
   return chapter;
 }
 
+// One round trip instead of two: fetches the chapter and its pages together
+// via a foreign-key embed, instead of waiting on the chapter row first.
 export async function getChapterWithPages(seriesId, chapterNumber) {
-  const { data: chapter, error: chapterError } = await supabase
+  const { data, error } = await supabase
     .from("chapters")
-    .select("*")
+    .select("*, chapter_pages(*)")
     .eq("series_id", seriesId)
     .eq("chapter_number", chapterNumber)
+    .order("page_number", { foreignTable: "chapter_pages", ascending: true })
     .single();
-  if (chapterError) throw chapterError;
+  if (error) throw error;
 
-  const { data: pages, error: pagesError } = await supabase
-    .from("chapter_pages")
-    .select("*")
-    .eq("chapter_id", chapter.id)
-    .order("page_number", { ascending: true });
-  if (pagesError) throw pagesError;
-
-  return { ...chapter, pages };
+  const { chapter_pages, ...chapter } = data;
+  return { ...chapter, pages: chapter_pages };
 }

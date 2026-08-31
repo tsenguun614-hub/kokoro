@@ -125,7 +125,6 @@ export default function Reader() {
   const [comment, setComment] = useState("");
   const [bookmarked, setBookmarked] = useState(false);
   const scrollRef = useRef(null);
-  const hideTimer = useRef(null);
   const pageRefs = useRef({});
 
   const widthMap = { compact: 560, comfortable: 720, wide: 900, full: "100%" };
@@ -134,24 +133,25 @@ export default function Reader() {
   const pages = chapterData?.pages || [];
   const progress = pages.length ? Math.round((currentPage / pages.length) * 100) : 0;
 
-  // Fetch series, this chapter's pages, and the full chapter list.
+  // Fetch this chapter's pages first — that's the only thing the reader
+  // needs to start showing content. Series info and the full chapter list
+  // (used for the breadcrumb, dropdown, and prev/next buttons) load in the
+  // background afterward instead of blocking the initial render.
   useEffect(() => {
     let cancelled = false;
     setDataLoading(true);
     setDataError(null);
-    Promise.all([
-      getSeriesById(seriesId),
-      getChapterWithPages(seriesId, CURRENT),
-      getChaptersForSeries(seriesId),
-    ])
-      .then(([s, ch, chs]) => {
-        if (cancelled) return;
-        setSeriesInfo(s);
-        setChapterData(ch);
-        setAllChapters(chs);
-      })
+    setSeriesInfo(null);
+    setAllChapters([]);
+
+    getChapterWithPages(seriesId, CURRENT)
+      .then((ch) => { if (!cancelled) setChapterData(ch); })
       .catch((err) => { if (!cancelled) setDataError(err.message); })
       .finally(() => { if (!cancelled) setDataLoading(false); });
+
+    getSeriesById(seriesId).then((s) => { if (!cancelled) setSeriesInfo(s); }).catch(() => {});
+    getChaptersForSeries(seriesId).then((chs) => { if (!cancelled) setAllChapters(chs); }).catch(() => {});
+
     return () => { cancelled = true; };
   }, [seriesId, CURRENT]);
 
@@ -212,25 +212,33 @@ export default function Reader() {
     return () => el.removeEventListener("scroll", onScroll);
   }, [readMode]);
 
-  // Auto-hide UI on scroll mode
-  const resetHideTimer = useCallback(() => {
-    setShowUI(true);
-    clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(() => setShowUI(false), 3500);
-  }, []);
-
-  useEffect(() => {
-    resetHideTimer();
-    return () => clearTimeout(hideTimer.current);
-  }, [resetHideTimer]);
-
-  const goPage = (n) => {
+  const goPage = useCallback((n) => {
     const clamped = Math.max(1, Math.min(pages.length, n));
     setCurrentPage(clamped);
     if (readMode === "scroll" && pageRefs.current[clamped]) {
       pageRefs.current[clamped].scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  };
+  }, [pages.length, readMode]);
+
+  // Tapping the reader closes any open panel first. Otherwise: in paged
+  // mode the left/right edges page back/forward (no more Prev/Next bar),
+  // and the middle — or any tap in scroll mode — toggles the header so
+  // images can fill the whole screen.
+  const handleReaderTap = useCallback((e) => {
+    if (showChapters || showSettings || showComments) {
+      setShowChapters(false);
+      setShowSettings(false);
+      setShowComments(false);
+      return;
+    }
+    if (readMode === "paged") {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const ratio = (e.clientX - rect.left) / rect.width;
+      if (ratio < 0.3) { goPage(currentPage - 1); return; }
+      if (ratio > 0.7) { goPage(currentPage + 1); return; }
+    }
+    setShowUI(v => !v);
+  }, [showChapters, showSettings, showComments, readMode, currentPage, goPage]);
 
   const handlePageLoad = (id) => setLoadedPages(p => ({ ...p, [id]: true }));
 
@@ -265,7 +273,7 @@ export default function Reader() {
       <style>{css}</style>
 
       {/* ── TOP BAR ── */}
-      <div className="slide-down" style={{
+      <div style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 200,
         background: isDark ? "rgba(8,8,16,0.95)" : "rgba(240,236,228,0.95)",
         backdropFilter: "blur(20px)",
@@ -273,7 +281,7 @@ export default function Reader() {
         padding: "0 20px",
         transform: showUI ? "translateY(0)" : "translateY(-100%)",
         transition: "transform 0.3s ease",
-      }} onClick={resetHideTimer}>
+      }}>
         <div style={{ height: 56, display: "flex", alignItems: "center", gap: 16, maxWidth: 1400, margin: "0 auto" }}>
 
           {/* Left: Home + Series */}
@@ -405,18 +413,18 @@ export default function Reader() {
       )}
 
       {/* ── MAIN READER AREA ── */}
-      <div ref={scrollRef} onMouseMove={resetHideTimer} style={{
+      <div ref={scrollRef} style={{
         flex: 1, overflowY: "auto", overflowX: "hidden",
         paddingTop: 58, background: readerBg,
         transition: "background 0.3s",
-      }} onClick={() => { setShowChapters(false); setShowSettings(false); resetHideTimer(); }}>
+      }} onClick={handleReaderTap}>
 
         {/* Pages */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingBottom: 80 }}>
           {(readMode === "scroll" ? pages : [pages[currentPage - 1]]).filter(Boolean).map((page) => (
             <div key={page.id} ref={el => pageRefs.current[page.page_number] = el} style={{
-              width: typeof maxW === "number" ? maxW : "100%",
-              maxWidth: typeof maxW === "number" ? maxW : "100%",
+              width: "100%",
+              maxWidth: isMobile ? "100%" : (typeof maxW === "number" ? maxW : "100%"),
               margin: readMode === "scroll" ? "0" : "20px auto",
               position: "relative",
               animation: readMode === "paged" ? "fadeIn 0.3s ease" : "none",
@@ -456,6 +464,8 @@ export default function Reader() {
                 alt={`Page ${page.page_number}`}
                 onLoad={() => handlePageLoad(page.page_number)}
                 style={{ display: loadedPages[page.page_number] ? "block" : "none" }}
+                loading={page.page_number <= 2 ? "eager" : "lazy"}
+                fetchPriority={page.page_number === 1 ? "high" : "auto"}
               />
             </div>
           ))}
@@ -499,82 +509,6 @@ export default function Reader() {
             </div>
           )}
         </div>
-      </div>
-
-      {/* ── BOTTOM BAR ── */}
-      <div className="slide-up" style={{
-        position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200,
-        background: isDark ? "rgba(8,8,16,0.95)" : "rgba(240,236,228,0.95)",
-        backdropFilter: "blur(20px)",
-        borderTop: `1px solid ${isDark ? "rgba(201,168,76,0.12)" : "rgba(201,168,76,0.2)"}`,
-        transform: showUI ? "translateY(0)" : "translateY(100%)",
-        transition: "transform 0.3s ease",
-      }} onClick={resetHideTimer}>
-
-        {readMode === "paged" ? (
-          /* Paged navigation */
-          <div style={{ height: 60, display: "flex", alignItems: "center", justifyContent: "center", gap: 20, padding: "0 20px" }}>
-            <button className="nav-btn" onClick={() => goPage(currentPage - 1)} disabled={currentPage === 1} style={{
-              background: currentPage === 1 ? "transparent" : surface,
-              border: `1px solid ${currentPage === 1 ? "transparent" : border}`,
-              color: currentPage === 1 ? "rgba(247,243,234,0.2)" : text,
-              padding: "8px 20px", borderRadius: 6,
-              display: "flex", alignItems: "center", gap: 6,
-              fontSize: 14, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif",
-            }}><ChevronLeft /> Previous</button>
-
-            {/* Page dots */}
-            <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
-              {pages.map(p => (
-                <div key={p.id} onClick={() => goPage(p.page_number)} style={{
-                  width: p.page_number === currentPage ? 18 : 6,
-                  height: 6, borderRadius: 3,
-                  background: p.page_number === currentPage ? "#c9a84c" : (isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"),
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                }} />
-              ))}
-            </div>
-
-            <button className="nav-btn" onClick={() => goPage(currentPage + 1)} disabled={currentPage === pages.length} style={{
-              background: currentPage === pages.length ? "transparent" : "linear-gradient(135deg, #c9a84c, #8a6020)",
-              border: `1px solid ${currentPage === pages.length ? "transparent" : "transparent"}`,
-              color: currentPage === pages.length ? "rgba(247,243,234,0.2)" : "#080810",
-              padding: "8px 20px", borderRadius: 6,
-              display: "flex", alignItems: "center", gap: 6,
-              fontSize: 14, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500,
-              boxShadow: currentPage === pages.length ? "none" : "0 4px 16px rgba(201,168,76,0.3)",
-            }}>Next <ChevronRight /></button>
-          </div>
-        ) : (
-          /* Scroll progress bar */
-          <div style={{ height: 60, display: "flex", alignItems: "center", padding: "0 24px", gap: 16 }}>
-            <span style={{ fontSize: 13, color: sub, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 400, minWidth: 30 }}>
-              {currentPage}
-            </span>
-            <div style={{ flex: 1, height: 4, background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.1)", borderRadius: 2, position: "relative", cursor: "pointer" }}
-              onClick={e => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const ratio = (e.clientX - rect.left) / rect.width;
-                goPage(Math.round(ratio * pages.length));
-              }}>
-              <div style={{ height: "100%", width: `${progress}%`, background: "linear-gradient(90deg, #c9a84c, #f0d080)", borderRadius: 2, transition: "width 0.15s" }} />
-              <div className="progress-thumb" style={{
-                position: "absolute", top: "50%", left: `${progress}%`,
-                transform: "translate(-50%, -50%)",
-                width: 14, height: 14, borderRadius: "50%",
-                background: "#c9a84c",
-                boxShadow: "0 0 8px rgba(201,168,76,0.6)",
-              }} />
-            </div>
-            <span style={{ fontSize: 13, color: sub, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 400, minWidth: 30, textAlign: "right" }}>
-              {pages.length}
-            </span>
-            <span style={{ fontSize: 13, color: "#c9a84c", fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontWeight: 500, minWidth: 36 }}>
-              {progress}%
-            </span>
-          </div>
-        )}
       </div>
 
       {/* ── COMMENTS PANEL ── */}
