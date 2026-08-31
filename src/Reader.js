@@ -198,12 +198,12 @@ export default function Reader() {
     const el = scrollRef.current;
     if (!el) return;
     const onScroll = () => {
-      const scrollTop = el.scrollTop;
+      const containerTop = el.getBoundingClientRect().top;
       let closest = 1;
       let minDist = Infinity;
       Object.entries(pageRefs.current).forEach(([pg, ref]) => {
         if (!ref) return;
-        const dist = Math.abs(ref.offsetTop - scrollTop - 120);
+        const dist = Math.abs(ref.getBoundingClientRect().top - containerTop - 120);
         if (dist < minDist) { minDist = dist; closest = Number(pg); }
       });
       setCurrentPage(closest);
@@ -464,7 +464,6 @@ export default function Reader() {
                 src={page.image_url}
                 alt={`Page ${page.page_number}`}
                 onLoad={() => handlePageLoad(page.page_number)}
-                style={{ display: loadedPages[page.page_number] ? "block" : "none" }}
                 loading={page.page_number <= 2 ? "eager" : "lazy"}
                 fetchPriority={page.page_number === 1 ? "high" : "auto"}
               />
