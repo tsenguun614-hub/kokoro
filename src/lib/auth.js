@@ -37,6 +37,22 @@ export async function signOut() {
   if (error) throw error;
 }
 
+// Sends an email with a link to /reset-password. Clicking it signs the user
+// in via a short-lived recovery session, which ResetPassword.js then uses to
+// call updatePassword below.
+export async function requestPasswordReset(email) {
+  setRememberMe(true); // so the session survives the redirect from the email link
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/reset-password`,
+  });
+  if (error) throw error;
+}
+
+export async function updatePassword(newPassword) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+}
+
 export function onAuthStateChange(callback) {
   const { data } = supabase.auth.onAuthStateChange((_event, session) => {
     callback(session?.user ?? null);

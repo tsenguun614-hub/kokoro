@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import useWindowSize from "./useWindowSize";
 import Header from "./components/Header";
 import { FONT_IMPORT, baseCss } from "./sharedStyles";
-import { signIn, signUp, signInWithOAuth } from "./lib/auth";
+import { signIn, signUp, signInWithOAuth, requestPasswordReset } from "./lib/auth";
 
 const css = `
   ${FONT_IMPORT}
@@ -75,13 +75,15 @@ const css = `
 
 export default function Auth() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState("login"); // login | register
+  const [mode, setMode] = useState("login"); // login | register | forgot
   const [showPass, setShowPass] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "", confirmPassword: "" });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const width = useWindowSize();
   const isMobile = width < 768;
 
@@ -135,7 +137,22 @@ export default function Auth() {
   const switchMode = (m) => {
     setMode(m);
     setErrors({});
+    setResetSent(false);
     setForm({ name: "", email: "", password: "", confirmPassword: "" });
+  };
+
+  const handleRequestReset = async () => {
+    if (!form.email.trim()) { setErrors({ email: "Email is required" }); return; }
+    setResetLoading(true);
+    setErrors({});
+    try {
+      await requestPasswordReset(form.email.trim());
+      setResetSent(true);
+    } catch (err) {
+      setErrors({ form: err.message });
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   return (
@@ -215,10 +232,46 @@ export default function Auth() {
 
             <div className="fade-up fade-up-1">
               <h3 style={{ fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 24, fontWeight: 700, marginBottom: 28 }}>
-                {mode === "login" ? "Тавтай Морил" : "Join Kokoro"}
+                {mode === "login" ? "Тавтай Морил" : mode === "register" ? "Join Kokoro" : "Нууц үг сэргээх"}
               </h3>
             </div>
 
+            {mode === "forgot" ? (
+              <div className="fade-up fade-up-2">
+                {resetSent ? (
+                  <div style={{ textAlign: "center", padding: "12px 0" }}>
+                    <p style={{ fontSize: 14, color: "rgba(247,243,234,0.7)", lineHeight: 1.7, marginBottom: 20 }}>
+                      <span style={{ color: "#c9a84c" }}>{form.email}</span> хаяг руу нууц үг сэргээх холбоос илгээлээ. Имэйлээ шалгана уу.
+                    </p>
+                    <button className="toggle-link" onClick={() => switchMode("login")} style={{ color: "#c9a84c", fontSize: 14, fontWeight: 400 }}>← Нэвтрэх рүү буцах</button>
+                  </div>
+                ) : (
+                  <>
+                    <p style={{ fontSize: 14, fontWeight: 400, color: "rgba(247,243,234,0.5)", marginBottom: 20, lineHeight: 1.6 }}>
+                      Бүртгэлтэй имэйл хаягаа оруулбал нууц үг сэргээх холбоос илгээх болно.
+                    </p>
+                    <div style={{ marginBottom: 14 }}>
+                      <label style={{ fontSize: 13, color: "rgba(247,243,234,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>ИМЭЙЛ ХАЯГ</label>
+                      <input className="auth-input" type="email" placeholder="example@gmail.com" value={form.email} onChange={e => update("email", e.target.value)} />
+                      {errors.email && <p style={{ fontSize: 13, color: "#e07070", marginTop: 5, fontWeight: 400 }}>{errors.email}</p>}
+                    </div>
+                    {errors.form && <p style={{ fontSize: 13, color: "#e07070", marginBottom: 12, fontWeight: 400, textAlign: "center" }}>{errors.form}</p>}
+                    <button className="cta-btn" onClick={handleRequestReset} disabled={resetLoading} style={{
+                      width: "100%", padding: "14px",
+                      background: resetLoading ? "rgba(201,168,76,0.5)" : "linear-gradient(135deg, #c9a84c, #8a6020)",
+                      color: "#080810", borderRadius: 6,
+                      fontSize: 14, fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif",
+                      fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase",
+                      boxShadow: "0 8px 24px rgba(201,168,76,0.25)",
+                    }}>{resetLoading ? "Илгээж байна..." : "Холбоос илгээх ✦"}</button>
+                    <p style={{ textAlign: "center", marginTop: 18, fontSize: 14, color: "rgba(247,243,234,0.35)", fontWeight: 400 }}>
+                      <button className="toggle-link" onClick={() => switchMode("login")} style={{ color: "#c9a84c", fontSize: 14, fontWeight: 400 }}>← Нэвтрэх рүү буцах</button>
+                    </p>
+                  </>
+                )}
+              </div>
+            ) : (
+            <>
             {/* Social login */}
             <div className="fade-up fade-up-2" style={{ marginBottom: 24 }}>
               <button className="social-btn" onClick={() => handleOAuthLogin("google")} style={{
@@ -268,7 +321,7 @@ export default function Auth() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
                   <label style={{ fontSize: 13, color: "rgba(247,243,234,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 400 }}>НУУЦ ҮГ</label>
                   {mode === "login" && (
-                    <button className="forgot-link" style={{ fontSize: 13, color: "#c9a84c", fontWeight: 400 }}>Нууц үг мартсан уу?</button>
+                    <button className="forgot-link" onClick={() => switchMode("forgot")} style={{ fontSize: 13, color: "#c9a84c", fontWeight: 400 }}>Нууц үг мартсан уу?</button>
                   )}
                 </div>
                 <div style={{ position: "relative" }}>
@@ -341,6 +394,8 @@ export default function Auth() {
                 </button>
               </p>
             </div>
+            </>
+            )}
           </div>
         </div>
       </div>
