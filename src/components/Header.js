@@ -108,7 +108,7 @@ export default function Header({ searchValue, onSearchChange }) {
                 {controlled ? (
                   <input placeholder="Хайх..." value={searchValue} onChange={e => onSearchChange(e.target.value)} style={{ background: "none", border: "none", outline: "none", fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 14, color: "#f7f3ea", width: 160, fontWeight: 400 }} />
                 ) : (
-                  <input placeholder="Хайх..." onKeyDown={e => { if (e.key === "Enter" && e.target.value.trim()) navigate("/browse"); }} style={{ background: "none", border: "none", outline: "none", fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 14, color: "#f7f3ea", width: 160, fontWeight: 400 }} />
+                  <input placeholder="Хайх..." onKeyDown={e => { if (e.key === "Enter" && e.target.value.trim()) navigate(`/browse?q=${encodeURIComponent(e.target.value.trim())}`); }} style={{ background: "none", border: "none", outline: "none", fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 14, color: "#f7f3ea", width: 160, fontWeight: 400 }} />
                 )}
               </div>
             )}
@@ -142,7 +142,7 @@ export default function Header({ searchValue, onSearchChange }) {
               {controlled ? (
                 <input autoFocus placeholder="Хайх..." value={searchValue} onChange={e => onSearchChange(e.target.value)} onKeyDown={e => { if (e.key === "Enter") setSearchOpen(false); }} style={{ background: "none", border: "none", outline: "none", fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 15, color: "#f7f3ea", flex: 1, fontWeight: 400 }} />
               ) : (
-                <input autoFocus placeholder="Хайх..." onKeyDown={e => { if (e.key === "Enter" && e.target.value.trim()) { navigate("/browse"); setSearchOpen(false); } }} style={{ background: "none", border: "none", outline: "none", fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 15, color: "#f7f3ea", flex: 1, fontWeight: 400 }} />
+                <input autoFocus placeholder="Хайх..." onKeyDown={e => { if (e.key === "Enter" && e.target.value.trim()) { navigate(`/browse?q=${encodeURIComponent(e.target.value.trim())}`); setSearchOpen(false); } }} style={{ background: "none", border: "none", outline: "none", fontFamily: "'Noto Sans', Inter, 'Segoe UI', 'Arial Unicode MS', sans-serif", fontSize: 15, color: "#f7f3ea", flex: 1, fontWeight: 400 }} />
               )}
             </div>
           </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import useWindowSize from "./useWindowSize";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
@@ -44,6 +44,7 @@ export default function Browse() {
   const navigate = useNavigate();
   const screenWidth = useWindowSize();
   const isMobile = screenWidth < 768;
+  const [searchParams] = useSearchParams();
 
   const [allSeries, setAllSeries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,7 +54,9 @@ export default function Browse() {
   const [activeStatus, setActiveStatus] = useState("Бүгд");
   const [sortBy, setSortBy] = useState("rating");
   const [viewMode, setViewMode] = useState("grid");
-  const [search, setSearch] = useState("");
+  // Seeded from ?q= so a search from the header (elsewhere on the site)
+  // arrives here already applied, instead of landing on the unfiltered list.
+  const [search, setSearch] = useState(() => searchParams.get("q") || "");
 
   useEffect(() => {
     getAllSeries()
