@@ -9,8 +9,15 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
-      - name: Install postgresql-client
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      # Ubuntu's default apt package (pg_dump 16) can't dump a newer server —
+      # Supabase runs Postgres 17, so pull the matching client from the
+      # official PostgreSQL apt repo instead.
+      - name: Install postgresql-client 17
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17
 
       - name: Set backup filename
         run: echo "BACKUP_FILE=supabase-backup-$(date +%Y-%m-%d).sql" >> "$GITHUB_ENV"
@@ -18,7 +25,7 @@ jobs:
       - name: Dump database
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
-        run: pg_dump "$DATABASE_URL" --no-owner --no-privileges --clean --if-exists -f "$BACKUP_FILE"
+        run: /usr/lib/postgresql/17/bin/pg_dump "$DATABASE_URL" --no-owner --no-privileges --clean --if-exists -f "$BACKUP_FILE"
 
       - name: Upload backup artifact
         uses: actions/upload-artifact@v4
