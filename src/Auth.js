@@ -252,7 +252,7 @@ export default function Auth() {
                     </p>
                     <div style={{ marginBottom: 14 }}>
                       <label style={{ fontSize: 13, color: "rgba(247,243,234,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>ИМЭЙЛ ХАЯГ</label>
-                      <input className="auth-input" type="email" placeholder="example@gmail.com" value={form.email} onChange={e => update("email", e.target.value)} />
+                      <input className="auth-input" type="email" placeholder="example@gmail.com" value={form.email} onChange={e => update("email", e.target.value)} onKeyDown={e => e.key === "Enter" && handleRequestReset()} />
                       {errors.email && <p style={{ fontSize: 13, color: "#e07070", marginTop: 5, fontWeight: 400 }}>{errors.email}</p>}
                     </div>
                     {errors.form && <p style={{ fontSize: 13, color: "#e07070", marginBottom: 12, fontWeight: 400, textAlign: "center" }}>{errors.form}</p>}
@@ -313,7 +313,7 @@ export default function Auth() {
 
               <div>
                 <label style={{ fontSize: 13, color: "rgba(247,243,234,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>ИМЭЙЛ ХАЯГ</label>
-                <input className="auth-input" type="email" placeholder="example@gmail.com" value={form.email} onChange={e => update("email", e.target.value)} />
+                <input className="auth-input" type="email" placeholder="example@gmail.com" value={form.email} onChange={e => update("email", e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()} />
                 {errors.email && <p style={{ fontSize: 13, color: "#e07070", marginTop: 5, fontWeight: 400 }}>{errors.email}</p>}
               </div>
 
@@ -325,7 +325,7 @@ export default function Auth() {
                   )}
                 </div>
                 <div style={{ position: "relative" }}>
-                  <input className="auth-input" type={showPass ? "text" : "password"} placeholder="••••••••" value={form.password} onChange={e => update("password", e.target.value)} style={{ paddingRight: 44 }} />
+                  <input className="auth-input" type={showPass ? "text" : "password"} placeholder="••••••••" value={form.password} onChange={e => update("password", e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()} style={{ paddingRight: 44 }} />
                   <button onClick={() => setShowPass(!showPass)} style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(247,243,234,0.3)", fontSize: 14, padding: 0 }}>
                     {showPass ? "Hide" : "Show"}
                   </button>
@@ -336,7 +336,7 @@ export default function Auth() {
               {mode === "register" && (
                 <div>
                   <label style={{ fontSize: 13, color: "rgba(247,243,234,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>Confirm НУУЦ ҮГ</label>
-                  <input className="auth-input" type={showPass ? "text" : "password"} placeholder="••••••••" value={form.confirmPassword} onChange={e => update("confirmPassword", e.target.value)} />
+                  <input className="auth-input" type={showPass ? "text" : "password"} placeholder="••••••••" value={form.confirmPassword} onChange={e => update("confirmPassword", e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()} />
                   {errors.confirmPassword && <p style={{ fontSize: 13, color: "#e07070", marginTop: 5, fontWeight: 400 }}>{errors.confirmPassword}</p>}
                 </div>
               )}

@@ -115,11 +115,11 @@ export default function ResetPassword() {
             <>
               <div style={{ marginBottom: 14 }}>
                 <label style={{ fontSize: 13, color: "rgba(247,243,234,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>ШИНЭ НУУЦ ҮГ</label>
-                <input className="auth-input" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} />
+                <input className="auth-input" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()} />
               </div>
               <div style={{ marginBottom: 20 }}>
                 <label style={{ fontSize: 13, color: "rgba(247,243,234,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", display: "block", marginBottom: 7, fontWeight: 400 }}>ДАВТАН ОРУУЛАХ</label>
-                <input className="auth-input" type="password" placeholder="••••••••" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
+                <input className="auth-input" type="password" placeholder="••••••••" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()} />
               </div>
               {error && <p style={{ fontSize: 13, color: "#e07070", marginBottom: 14, fontWeight: 400 }}>{error}</p>}
               <button className="cta-btn" onClick={handleSubmit} disabled={loading} style={{
